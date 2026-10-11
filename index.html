@@ -310,7 +310,7 @@ async function showCall(fresh) {
       + (D.ask ? '<div class="sub" style="margin:12px 0 8px">Когда перезвонить?</div><div class="three"><button class="b" data-rc="1">Завтра</button><button class="b" data-rc="2">Послезавтра</button><button class="b" data-rc="0">Без даты</button></div>' : '')
       + '</div>' + (D.ask ? '' : '<button class="big" id="nxt">📞 Следующая заявка</button>') + '</div>';
   } else if (!L) {
-    app.innerHTML = head + '<div class="wrap"><div class="sec" style="text-align:center;padding:28px 16px"><div class="sub">В очереди</div><div class="flyv" style="font-size:44px;margin:4px 0 2px">' + CALL.left + '</div><div class="sub">заявок за 7 дней, сначала свежие и с паспортом</div></div>'
+    app.innerHTML = head + '<div class="wrap"><div class="sec" style="text-align:center;padding:28px 16px"><div class="sub">В очереди</div><div class="flyv" style="font-size:44px;margin:4px 0 2px">' + CALL.left + '</div><div class="sub">заявок с начала месяца, сначала свежие и с паспортом</div></div>'
       + (CALL.left ? '<button class="big" id="nxt">📞 Дай заявку</button>' : '<div class="empty" style="padding:24px">🎉 Очередь пуста: всё разобрано или ждёт перезвона</div>') + '</div>';
   } else {
     const dg = L.ph.replace(/\D/g, '');
