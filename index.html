@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hohlorez CRM</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* «Ночной аэропорт»: табло вылетов — тёмно-синее небо, янтарь табло, бирюза «прилетел» */
+:root{
+  --sky:#0D1626;--panel:#14213A;--raise:#1C2C4B;--line:#26385B;--text:#EAF0FA;--muted:#8796B3;
+  --amber:#F4B740;--amber-ink:#2A1C00;--arr:#3DD6A8;--bad:#FF6E6E;--blue:#7EA6FF;
+  --disp:"Unbounded",system-ui,sans-serif;--body:"Onest",system-ui,-apple-system,sans-serif
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--sky);color:var(--text);font:15px/1.45 var(--body)}
+body{padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--text);background:var(--sky);border:1px solid var(--line);border-radius:12px;padding:11px 13px;width:100%}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+input[type=datetime-local]{color-scheme:dark}
+textarea{min-height:84px;resize:vertical}
+a{color:var(--blue)}
+.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--sky) 82%,transparent);padding:14px 16px 10px}
+.h1{font:600 22px/1.15 var(--disp);letter-spacing:-.01em;margin:0}
+.toprow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ghost{color:var(--muted);font-size:14px;padding:4px 2px}
+.sub{color:var(--muted);font-size:13px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips+.chips{margin-top:6px}
+.chip{flex:none;padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13.5px;white-space:nowrap;color:var(--muted)}
+.chip.on{border-color:var(--amber);color:var(--amber)}
+.chip b{font-weight:600;color:var(--text);margin-left:5px}
+.chip.on b{color:var(--amber)}
+.chip:disabled{opacity:.4}
+.wrap{padding:4px 16px 18px}
+.board{background:var(--panel);border-radius:20px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:2px 12px;width:100%;text-align:left;padding:14px 16px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item:active{background:var(--raise)}
+.name{font:600 15.5px/1.25 var(--disp);letter-spacing:-.005em}
+.days{grid-row:span 2;text-align:right;align-self:start}
+.days b{display:block;font:600 22px/1 var(--disp);color:var(--amber)}
+.days span{font-size:11.5px;color:var(--muted)}
+.meta{color:var(--muted);font-size:13px}
+.warn{color:var(--bad);font-size:13px}
+.cm{grid-column:1/-1;margin-top:6px;font-size:13.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cm em{font-style:normal;color:var(--text)}
+.flags{font-size:14px;margin-left:6px}
+.trip{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:9px}
+.trip i{height:4px;border-radius:2px;background:var(--line)}
+.trip i.p{background:color-mix(in srgb,var(--amber) 45%,var(--line))}
+.trip i.c{background:var(--amber)}
+.trip.arr i{background:var(--arr)}
+.trip.arch i{background:var(--line)}
+.trip-l{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px;font-size:11px;color:var(--muted)}
+.trip-l span.c{color:var(--amber);font-weight:600}
+.hero{padding:6px 2px 4px}
+.hero .name{font-size:24px;line-height:1.15}
+.hero .meta{margin-top:6px}
+.stage{display:inline-block;margin-top:12px;padding:5px 10px;border-radius:8px;background:var(--amber);color:var(--amber-ink);font:600 12.5px/1.2 var(--disp);letter-spacing:.02em}
+.stage.arr{background:var(--arr);color:#04261C}.stage.arch{background:var(--raise);color:var(--muted)}
+.sec{background:var(--panel);border-radius:18px;padding:15px 16px;margin:12px 0}
+.sec h2{font:600 14.5px/1.2 var(--disp);margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sec h2 small{font:500 12.5px var(--body);color:var(--muted)}
+.sec.quiet{background:transparent;border:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:14.5px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.b{flex:1 1 auto;min-width:30%;padding:12px 14px;border-radius:13px;background:var(--raise);font-weight:600;text-align:center}
+.b.main{background:var(--amber);color:var(--amber-ink)}
+.b.arr{background:var(--arr);color:#04261C}
+.b.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,var(--panel))}
+.b:disabled{opacity:.45}
+.docs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.doc{padding:11px 6px;border-radius:12px;border:1px dashed var(--line);font-size:13.5px;text-align:center;color:var(--muted)}
+.doc.on{border:1px solid var(--arr);color:var(--arr);font-weight:600}
+.meter{display:flex;justify-content:space-between;align-items:baseline}
+.meter b{font:600 19px var(--disp)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:8px 0 12px}
+.bar span{display:block;height:100%;background:var(--arr)}
+.bar span.w{background:var(--amber)}.bar span.bad{background:var(--bad)}
+.list{margin:0;padding:0;list-style:none}
+.list li{padding:10px 0;border-top:1px solid var(--line);font-size:14.5px}
+.list li:first-child{border-top:0;padding-top:2px}
+.who{color:var(--muted);font-size:12.5px;margin-bottom:2px}
+.form{display:grid;gap:8px;margin-top:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.more{display:block;width:100%;padding:10px 0 0;color:var(--blue);font-weight:600;text-align:left}
+.empty{text-align:center;color:var(--muted);padding:56px 24px}
+.flyv{font:600 20px var(--disp);color:var(--amber)}
+.tg{white-space:pre-wrap;font-size:14.5px;word-wrap:break-word;background:var(--panel);border-radius:18px;padding:15px 16px}
+.tg b{font-weight:600}
+.tg i{color:var(--muted);font-style:normal}
+.tg blockquote{margin:6px 0;padding:7px 11px;border-left:2px solid var(--amber);background:var(--raise);border-radius:0 10px 10px 0;white-space:pre-wrap}
+.tg code{font-size:13.5px}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;background:color-mix(in srgb,var(--sky) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);padding:3px 0}
+.nav button .e{font-size:20px;line-height:1;filter:grayscale(1) opacity(.65)}
+.nav button.on{color:var(--amber);font-weight:600}
+.nav button.on .e{filter:none}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--sky);font-weight:600;padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90%;text-align:center}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.hid{display:none!important}
+.mnav{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty"><span class="spin"></span><br><br>Загружаю CRM…</div></div>
+<nav class="nav hid" id="nav"></nav>
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbyvh-AKbSfcU7l3IeozRJgMb2rpxOZ_qx7rbjLeaEcf8Mbur0T81T0ljobtEKjfhpCR/exec?api=1';
+const tg = window.Telegram && Telegram.WebApp;
+const $ = s => document.querySelector(s), app = $('#app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const MSK = 3 * 3600e3;
+const fmt = (ts, f) => { if (!ts) return '—'; const d = new Date(ts + MSK), p = n => String(n).padStart(2, '0');
+  const dd = p(d.getUTCDate()) + '.' + p(d.getUTCMonth() + 1), hm = p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+  return f === 'd' ? dd : f === 'dy' ? dd + '.' + d.getUTCFullYear() : dd + ' ' + hm; };
+const money = n => '$' + (Math.round(n * 100) / 100).toLocaleString('ru-RU');
+const STE = { 'В работе': ['🟡', 'w'], 'В пути': ['✈️', 't'], 'Доехал': ['✅', 'd'], 'Архив': ['🗄', 'z'] };
+let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', show: 'act' }, stack = [], boardTimer = null;
+
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
+async function api(op, a) {
+  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ init: tg ? tg.initData : '', op: op, a: a || {} }) });
+  const j = await r.json();
+  if (j.err) throw new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа к CRM' : j.err);
+  return j.d;
+}
+function confirmP(msg) { return new Promise(res => tg && tg.showConfirm ? tg.showConfirm(msg, res) : res(window.confirm(msg))); }
+function popup(title, msg, btns) { return new Promise(res => { if (tg && tg.showPopup) tg.showPopup({ title: title, message: msg, buttons: btns }, res); else res(null); }); }
+function b64(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); }); }
+async function shrink(file) {                                  // фото — сжать до ~1600px, чтобы быстро грузилось
+  if (!/^image\//.test(file.type) || file.size < 600e3) return { b: await b64(file), mime: file.type };
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return { b: c.toDataURL('image/jpeg', .85).split(',')[1], mime: 'image/jpeg' };
+}
+
+// ---------- навигация ----------
+function nav() {
+  const tabs = [['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']];
+  if (ME.boss) tabs.push(['rep', '📋', 'Отчёт']);
+  $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
+  $('#nav').classList.remove('hid');
+  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.tab = b.dataset.t; render(); });
+}
+function back() { stack.pop(); render(); }
+function render() {
+  clearInterval(boardTimer);
+  nav(); window.scrollTo(0, 0);
+  if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
+  const top = stack[stack.length - 1];
+  if (top) return top.kind === 'card' ? showCard(top.k) : null;
+  if (S.tab === 'list') return showList();
+  if (S.tab === 'board') return showView('b', 'Табло', 60e3);
+  if (S.tab === 'funnel') return showView('f', 'Воронка');
+  if (S.tab === 'rep') return showRep();
+}
+
+// ---------- список кандидатов ----------
+function tripStep(c) { const core = ['pass', 'book', 'tour'].every(x => (c.docs || []).indexOf(x) >= 0);
+  return c.st === 'Доехал' ? 5 : c.st === 'В пути' ? 4 : c.fly ? 3 : core ? 2 : 1; }
+function tripHtml(c, labels) { const n = tripStep(c), cls = c.st === 'Доехал' ? ' arr' : c.st === 'Архив' ? ' arch' : '';
+  const L = ['WhatsApp', 'Документы', 'Вылет', 'В пути', 'Доехал'];
+  return '<div class="trip' + cls + '">' + L.map((x, i) => '<i class="' + (i + 1 < n ? 'p' : i + 1 === n ? 'c' : '') + '"></i>').join('') + '</div>'
+    + (labels ? '<div class="trip-l">' + L.map((x, i) => '<span class="' + (i + 1 === n ? 'c' : '') + '">' + x + '</span>').join('') + '</div>' : ''); }
+function flagSet(c) { return (c.fl || []).map(f => (ME.flags[f] || [''])[0]).join(''); }
+function matches(c) {
+  const f = S.f, act = c.st === 'В работе' || c.st === 'В пути';
+  if (S.show === 'act' && !act) return false;
+  if (S.show === 'done' && c.st !== 'Доехал') return false;
+  if (S.show === 'arch' && c.st !== 'Архив') return false;
+  if (f === 'x' && c.t) return false;
+  if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
+  if (f === 'fl' && !(c.fl || []).length) return false;
+  if (f === 'road' && c.st !== 'В пути') return false;
+  if (f === 'pass' && c.pass !== 'Да') return false;
+  if (f === 'fly' && !c.fly) return false;
+  if (S.q) { const q = S.q.toLowerCase(), d = q.replace(/\D/g, '');
+    if (!(c.n.toLowerCase().includes(q) || (d.length >= 3 && c.ph.replace(/\D/g, '').includes(d)))) return false; }
+  return true;
+}
+async function showList(reload) {
+  if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { LIST = await api('list'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
+  const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['x', 'Без команды']]);
+  const base = LIST.filter(c => { const o = S.f; S.f = 'a'; const r = matches(c); S.f = o; return r; });
+  const cnt = k => { const o = S.f; S.f = k; const n = base.filter(matches).length; S.f = o; return n; };
+  const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
+  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Кандидаты</h1><button class="ghost" id="rl">Обновить</button></div>'
+    + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
+    + '<div class="chips" style="margin-top:10px">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
+    + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>'
+    + '<div class="wrap"><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div></div>';
+  $('#rl').onclick = () => showList(true);
+  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Никого не нашёл</div>'; bindItems(); };
+  app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; showList(); });
+  app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
+  bindItems();
+}
+function itemHtml(c) {
+  const te = (ME.teamList.find(t => t.t === c.t) || {}).e || '❔';
+  const bits = [c.st === 'В работе' ? '' : c.st, te + ' ' + (c.t ? c.t.replace('Команда ', 'команда ') : 'без команды'), 'документы ' + c.docs.length + '/' + ME.docs.length];
+  if (c.fly) bits.push('вылет ' + fmt(c.fly, 'd')); if (c.sp) bits.push(money(c.sp));
+  return '<button class="item" data-k="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '<span class="flags">' + flagSet(c) + '</span></div>'
+    + '<div class="days"><b>' + (c.days || 0) + '</b><span>' + (c.days === 1 ? 'день' : c.days >= 2 && c.days <= 4 ? 'дня' : 'дней') + '</span></div>'
+    + '<div class="meta">' + bits.filter(Boolean).map(esc).join(', ') + '</div>'
+    + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
+    + tripHtml(c)
+    + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>';
+}
+function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
+function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? d[1].replace(' / бронь', '') : code; }
+
+// ---------- карточка ----------
+async function showCard(k) {
+  app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+  let c; try { c = await api('card', { k: k }); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  const se = STE[c.st] || ['▫️', 'z'], tinfo = ME.teamList.find(t => t.t === c.t), dg = c.ph.replace(/\D/g, '');
+  const pct = Math.min(100, Math.round(c.ok / ME.limit * 100)), barCls = c.ok >= ME.limit ? 'bad' : c.ok >= ME.limit * .8 ? 'w' : '';
+  let h = '<div class="wrap"><div class="hero"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div>'
+    + '<div class="meta">' + (tinfo ? tinfo.e + ' ' + esc(c.t) + ': ' + esc(tinfo.people.join(', ')) : '❔ без команды') + '</div>'
+    + '<div class="stage' + (c.st === 'Доехал' ? ' arr' : c.st === 'Архив' ? ' arch' : '') + '">' + esc(c.st) + '</div></div>'
+    + '<div class="sec">' + tripHtml(c, true) + '<div class="acts" style="margin-top:14px"><button class="b" id="cp">' + esc(c.ph || 'нет номера') + '</button>' + (dg ? '<button class="b main" id="wa">WhatsApp</button>' : '') + '</div></div>';
+  let dat = '<div class="sec quiet"><h2>Данные <small>строка ' + c.row + '</small></h2><dl class="kv"><dt>Страна</dt><dd>' + esc(c.c || '—') + '</dd><dt>Паспорт</dt><dd>' + esc(c.pass || '—') + '</dd>'
+    + (c.ph2 ? '<dt>Доп. номер</dt><dd>' + esc(c.ph2) + '</dd>' : '') + '<dt>WhatsApp</dt><dd>' + esc(c.wa || '—') + '</dd>'
+    + '<dt>Заявка</dt><dd>' + fmt(c.created) + ', звонков ' + c.tries + (c.res ? '. ' + esc(c.res) : '') + '</dd>' + (c.src ? '<dt>Источник</dt><dd>' + esc(c.src) + '</dd>' : '') + '</dl></div>';
+  // документы
+  let docsH = '<div class="sec"><h2>Документы <small>' + c.docs.length + ' из ' + ME.docs.length + '</small></h2><div class="docs">'
+    + ME.docs.map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + '</div>'
+    + (c.can ? '<div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid"></div>' : '')
+    + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</li>').join('') + '</ul>'
+      + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
+  // вылет
+  const fv = c.fly ? new Date(c.fly + MSK).toISOString().slice(0, 16) : '';
+  let flyH = '<div class="sec"><h2>Вылет <small>по Москве</small></h2><div class="' + (c.fly ? 'flyv' : 'sub') + '">' + (c.fly ? fmt(c.fly, 'dy') + ', ' + fmt(c.fly).slice(6) : 'Дата не назначена') + '</div>'
+    + (c.can ? '<div class="form"><input type="datetime-local" id="fly" value="' + fv + '"><div class="two"><button class="b main" id="flys">Сохранить</button><button class="b bad" id="flyx"' + (c.fly ? '' : ' disabled') + '>Удалить</button></div><div class="sub">Бот напомнит команде за сутки и утром в день вылета.</div></div>' : '') + '</div>';
+  // траты
+  let spH = '<div class="sec"><h2>Траты <small>лимит ' + money(ME.limit) + '</small></h2><div class="meter"><b>' + money(c.ok) + '</b>' + (c.wait ? '<span class="sub">ждут одобрения ' + money(c.wait) + '</span>' : '') + '</div>'
+    + '<div class="bar"><span class="' + barCls + '" style="width:' + pct + '%"></span></div>'
+    + (c.spends.length ? '<ul class="list">' + c.spends.slice().reverse().map(s => '<li><div class="who">' + fmt(s[0]) + ', ' + esc(s[4]) + (/^Ждёт/.test(s[5]) ? ' — ждёт одобрения' : /^Отклон/.test(s[5]) ? ' — отклонено' : '') + '</div><b>' + money(s[1]) + '</b> ' + esc(s[2]) + (s[3] ? ': ' + esc(s[3]) : '') + '</li>').join('') + '</ul>' : '<div class="sub">Трат пока нет</div>')
+    + (c.can ? '<div class="form"><div class="two"><input id="ss" inputmode="decimal" placeholder="Сумма, $"><select id="sc">' + ME.cats.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div>'
+      + '<input id="scm" placeholder="На что именно"><label class="sub">Фото чека. От ' + money(ME.approve) + ' обязательно: трата уйдёт руководителю на одобрение.<input type="file" id="sck" accept="image/*" style="margin-top:6px"></label><button class="b main" id="sadd">Добавить трату</button></div>' : '') + '</div>';
+  // комментарии
+  let cmH = '<div class="sec"><h2>Комментарии <small>' + c.cms.length + '</small></h2>' + (c.can ? '<div class="form" style="margin:0 0 8px"><textarea id="cmt" placeholder="Что нового и какой следующий шаг?"></textarea><button class="b main" id="cms">Сохранить</button></div>' : '')
+    + (c.cms.length ? '<ul class="list" id="cml">' + c.cms.map((x, i) => '<li' + (i >= 5 ? ' class="hid"' : '') + '><div class="who">' + esc(x[1]) + ', ' + fmt(x[0]) + '</div>' + esc(x[2]) + '</li>').join('') + '</ul>' + (c.cms.length > 5 ? '<button class="more" id="cmm">Показать все (' + c.cms.length + ')</button>' : '') : '<div class="sub">Комментариев ещё нет</div>') + '</div>';
+  // этап
+  const A = [];
+  if (c.can && c.t) {
+    if (c.st === 'В работе') A.push(['t', 'Вылетел — в пути', 'main']);
+    if (c.st === 'В пути') A.push(['w', 'Вернуть в работу', '']);
+    if (c.st === 'В пути' && ME.boss) A.push(['d', 'Доехал', 'arr']);
+    if (c.st !== 'Архив' && c.st !== 'Доехал') A.push(['z', 'В архив', 'bad']);
+  }
+  if (!c.t && c.st !== 'Архив') ME.teamList.forEach((t, i) => { if (ME.teams.indexOf(t.t) >= 0) A.push(['c' + i, 'Забрать в ' + t.e + ' ' + t.t.toLowerCase(), 'main']); });
+  if (ME.boss && c.st !== 'Архив') A.push(['g', 'Передать другой команде', '']);
+  let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
+  let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
+  let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
+  app.innerHTML = h + cmH + docsH + flyH + spH + stH + askH + dat + logH + '</div>';
+  bindCard(c);
+}
+function bindCard(c) {
+  const k = c.k, again = msg => { if (msg) toast(msg); hap(); LIST = []; showCard(k); };
+  const run = async (btn, op, a, msg) => { if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
+    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); return d; } catch (e) { hap('error'); toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
+  on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
+  app.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); tg ? tg.openLink(a.href) : window.open(a.href); });
+  app.querySelectorAll('[data-d]').forEach(b => b.onclick = () => run(b, 'docs', { d: b.dataset.d }, 'Готово'));
+  on('up', () => $('#file').click());
+  const fi = $('#file'); if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f) return;
+    if (f.size > 20e6) return toast('Файл больше 20 МБ — пришлите его через бот');
+    const btn = $('#up'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
+    try { const x = await shrink(f); await api('upload', { k: k, type: $('#ft').value, b64: x.b, mime: x.mime, fname: f.name }); again('Файл сохранён'); } catch (e) { toast(e.message); btn.disabled = false; btn.innerHTML = '⬆️ Загрузить файл'; } };
+  on('sf', b => run(b, 'sendfiles', {}, 'Файлы отправлены вам в бот'));
+  on('flys', b => { const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
+    run(b, 'fly', { ts: Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) - MSK }, 'Вылет записан'); });
+  on('flyx', async b => { if (await confirmP('Удалить дату вылета?')) run(b, 'fly', { ts: 0 }, 'Дата удалена'); });
+  on('sadd', async b => { const sum = $('#ss').value, f = $('#sck').files[0]; let x = null;
+    if (!(Number(String(sum).replace(',', '.')) > 0)) return toast('Укажите сумму в долларах');
+    if (f) { try { x = await shrink(f); } catch (e) { return toast('Не смог прочитать фото'); } }
+    run(b, 'spend', { sum: sum, cat: $('#sc').value, cm: $('#scm').value, img: x && x.b, mime: x && x.mime }, d => d.big ? 'Отправлено руководителю на одобрение' : 'Трата записана'); });
+  on('cms', b => { const t = $('#cmt').value.trim(); if (t.length < 3) return toast('Напишите хотя бы пару слов'); run(b, 'comment', { text: t }, 'Сохранено · подсказки, если есть, придут в бот'); });
+  on('cmm', b => { $('#cml').querySelectorAll('li.hid').forEach(li => li.classList.remove('hid')); b.remove(); });
+  on('asks', b => { const t = $('#askt').value.trim(); if (t.length < 3) return toast('Напишите вопрос'); run(b, 'ask', { text: t }, 'Вопрос отправлен команде'); });
+  app.querySelectorAll('[data-s]').forEach(b => b.onclick = async () => {
+    const s = b.dataset.s;
+    if (s === 'z') { const id = await popup('В архив', 'Причина?', ME.arch.map((x, i) => ({ id: 'z' + i, type: i === 0 ? 'destructive' : 'default', text: x })).concat([{ type: 'cancel' }]));
+      if (id && /^z\d$/.test(id)) run(b, 'stage', { s: id }, 'В архиве'); return; }
+    if (s === 'g') { const id = await popup('Передать', 'Какой команде?', ME.teamList.map((t, i) => ({ id: 'G' + i, type: 'default', text: t.e + ' ' + t.t })).filter(x => ME.teamList[+x.id.slice(1)].t !== c.t).concat([{ type: 'cancel' }]));
+      if (id && /^G\d$/.test(id)) run(b, 'stage', { s: id }, 'Передан'); return; }
+    if (s === 'd' && !(await confirmP('Подтвердить, что ' + c.n + ' доехал? В чаты уйдёт поздравление.'))) return;
+    run(b, 'stage', { s: s }, s === 't' ? 'Теперь «В пути»' : s === 'd' ? '🎉 Доехал!' : 'Готово');
+  });
+}
+
+// ---------- табло, воронка, отчёты (текст как в боте) ----------
+async function showView(v, title, every, off) {
+  const load = async (first) => {
+    if (first) app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">' + title + '</h1><button class="ghost" id="rl">Обновить</button></div></div><div class="wrap"><div class="tg" id="vw"><span class="spin"></span></div></div>';
+    const r = $('#rl'); if (r) r.onclick = () => load(false);
+    try { const t = await api('view', { v: v, off: off || 0 }); const el = $('#vw'); if (el) el.innerHTML = t; } catch (e) { const el = $('#vw'); if (el) el.textContent = e.message; }
+  };
+  await load(true);
+  if (every) boardTimer = setInterval(() => { if (!document.hidden) load(false); }, every);
+}
+async function showRep() {
+  const R = [['s', 'Сводка'], ['am', 'Утро'], ['m', 'Траты'], ['l', 'Потери'], ['k', 'Страны'], ['j', 'Журнал']];
+  S.rv = S.rv || 's'; S.off = S.off || 0;
+  const monthly = 'mlk'.indexOf(S.rv) >= 0, paged = S.rv === 'j';
+  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Отчёт</h1><button class="ghost" id="rl">Обновить</button></div><div class="chips">'
+    + R.map(x => '<button class="chip' + (S.rv === x[0] ? ' on' : '') + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + (monthly || paged ? '<div class="mnav"><button class="chip" id="pv">← ' + (paged ? 'Раньше' : 'Прошлый месяц') + '</button><button class="chip" id="nx"' + (S.off ? '' : ' disabled') + '>' + (paged ? 'Позже' : 'Следующий') + '</button></div>' : '')
+    + '</div><div class="wrap"><div class="tg" id="vw"><span class="spin"></span></div></div>';
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { S.rv = b.dataset.r; S.off = 0; showRep(); });
+  const pv = $('#pv'), nx = $('#nx'); if (pv) pv.onclick = () => { S.off++; showRep(); }; if (nx) nx.onclick = () => { S.off = Math.max(0, S.off - 1); showRep(); };
+  $('#rl').onclick = () => showRep();
+  try { $('#vw').innerHTML = await api('view', { v: S.rv, off: S.off }); } catch (e) { $('#vw').textContent = e.message; }
+}
+
+// ---------- старт ----------
+(async function () {
+  if (!tg || !tg.initData) { app.innerHTML = '<div class="empty">Откройте CRM из бота <b>@Hohlorezstat_bot</b> — кнопка «📱 CRM».</div>'; return; }
+  tg.ready(); tg.expand();
+  try { tg.setHeaderColor('#0D1626'); tg.setBackgroundColor('#0D1626'); if (tg.setBottomBarColor) tg.setBottomBarColor('#0D1626'); } catch (e) {}
+  tg.BackButton.onClick(back);
+  try { ME = await api('me'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
+  if (/^c_/.test(sp)) stack.push({ kind: 'card', k: sp.slice(2) });
+  render();
+})();
+</script>
+</body>
+</html>
