@@ -21,7 +21,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 input,select,textarea{font:inherit;color:var(--text);background:var(--sky);border:1px solid var(--line);border-radius:12px;padding:11px 13px;width:100%}
 input::placeholder,textarea::placeholder{color:var(--muted)}
-input[type=datetime-local]{color-scheme:dark}
+input[type=datetime-local]{color-scheme:dark;-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:46px;text-align:left}
+input[type=datetime-local]::-webkit-date-and-time-value{text-align:left}
 textarea{min-height:84px;resize:vertical}
 a{color:var(--blue)}
 .top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--sky) 82%,transparent);padding:14px 16px 10px}
@@ -244,7 +245,7 @@ async function showCard(k) {
   // вылет
   const fv = c.fly ? new Date(c.fly + MSK).toISOString().slice(0, 16) : '';
   let flyH = '<div class="sec"><h2>Вылет <small>по Москве</small></h2><div class="' + (c.fly ? 'flyv' : 'sub') + '">' + (c.fly ? fmt(c.fly, 'dy') + ', ' + fmt(c.fly).slice(6) : 'Дата не назначена') + '</div>'
-    + (c.can ? '<div class="form"><input type="datetime-local" id="fly" value="' + fv + '"><div class="two"><button class="b main" id="flys">Сохранить</button><button class="b bad" id="flyx"' + (c.fly ? '' : ' disabled') + '>Удалить</button></div><div class="sub">Бот напомнит команде за сутки и утром в день вылета.</div></div>' : '') + '</div>';
+    + (c.can ? '<div class="form"><div class="sub">' + (c.fly ? 'Изменить дату и время' : 'Нажмите на поле, чтобы выбрать дату и время') + '</div><input type="datetime-local" id="fly" value="' + fv + '"><div class="two"><button class="b main" id="flys">Сохранить</button><button class="b bad" id="flyx"' + (c.fly ? '' : ' disabled') + '>Удалить</button></div><div class="sub">Бот напомнит команде за сутки и утром в день вылета.</div></div>' : '') + '</div>';
   // траты
   let spH = '<div class="sec"><h2>Траты <small>лимит ' + money(ME.limit) + '</small></h2><div class="meter"><b>' + money(c.ok) + '</b>' + (c.wait ? '<span class="sub">ждут одобрения ' + money(c.wait) + '</span>' : '') + '</div>'
     + '<div class="bar"><span class="' + barCls + '" style="width:' + pct + '%"></span></div>'
