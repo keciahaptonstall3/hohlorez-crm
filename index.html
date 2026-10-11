@@ -279,12 +279,21 @@ async function waBox() {
     + '<button class="b arr" data-wy="' + esc(L.k) + '">Есть</button><button class="b bad" data-wn="' + esc(L.k) + '">Нет</button></div>').join('') + '</div>';
   el.querySelectorAll('[data-wo]').forEach(b => b.onclick = () => { const u = 'https://wa.me/' + b.dataset.wo; tg ? tg.openLink(u) : window.open(u); });
   const ansW = async (b, k, y) => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-    try { await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); WA = WA.filter(x => x.k !== k); LIST = []; waBox(); }
+    try { const d = await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); const L = WA.find(x => x.k === k) || {}; WA = WA.filter(x => x.k !== k); LIST = []; waBox();
+      if (d && d.ask) waNext(k, L.n || 'кандидат'); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = y ? 'Есть' : 'Нет'; } };
   el.querySelectorAll('[data-wy]').forEach(b => b.onclick = () => ansW(b, b.dataset.wy, 1));
   el.querySelectorAll('[data-wn]').forEach(b => b.onclick = () => ansW(b, b.dataset.wn, 0));
 }
 
+async function waNext(k, n) {                                 // «диалога нет» — что дальше
+  const id = await popup('Диалога нет', n + ': что дальше?', [{ id: 'r', type: 'default', text: '🔁 Перезвонить' }, { id: 'w', type: 'default', text: '⏳ Ещё пишем' }, { id: 'z', type: 'destructive', text: '🗄 В архив' }]);
+  if (!id) { toast('Не решили — через сутки бот сам вернёт на перезвон'); return; }
+  try { const R = await api('wano', { k: k, a: id }); hap(); LIST = [];
+    if (R.recall) { const d = await popup('Перезвон', 'Когда перезвонить?', [{ id: '1', type: 'default', text: 'Завтра' }, { id: '2', type: 'default', text: 'Послезавтра' }, { id: '0', type: 'default', text: 'Через 3 часа' }]);
+      if (d) { const t = await api('recall', { k: k, d: d }); toast('Перезвон: ' + t); return; } }
+    toast(R.txt); } catch (e) { hap('error'); toast(e.message); }
+}
 // ---------- 📞 прозвон ----------
 let CALL = { lead: null, left: 0, done: null }, callTimer = null;
 async function showCall(fresh) {
