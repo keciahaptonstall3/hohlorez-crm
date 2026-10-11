@@ -110,6 +110,20 @@ a{color:var(--blue)}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 .hid{display:none!important}
 .mnav{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+.lead .name{font-size:24px;line-height:1.15}
+.timer{font:600 13px var(--disp);color:var(--amber);margin-top:8px}
+.big{display:block;width:100%;padding:18px;border-radius:18px;background:var(--amber);color:var(--amber-ink);font:600 18px var(--disp);text-align:center}
+.col{display:grid;gap:8px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.three .b{min-width:0;padding:12px 6px;font-size:14px}
+.wa{border:1px solid color-mix(in srgb,var(--arr) 40%,var(--line))}
+.wa .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.wa .row:first-of-type{border-top:0}
+.wa .row .t{flex:1;min-width:0}
+.wa .row .b{flex:none;min-width:0;padding:9px 12px}
+.seg{display:flex;gap:6px}.seg .chip{flex:1;text-align:center}
+.tk{margin-top:10px}
+.hdr{display:flex;gap:14px;align-items:baseline}
 </style>
 </head>
 <body>
@@ -149,7 +163,7 @@ async function shrink(file) {                                  // фото — �
 
 // ---------- навигация ----------
 function nav() {
-  const tabs = [['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']];
+  const tabs = (ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
   if (ME.boss) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
@@ -157,11 +171,12 @@ function nav() {
 }
 function back() { stack.pop(); render(); }
 function render() {
-  clearInterval(boardTimer);
+  clearInterval(boardTimer); clearInterval(callTimer);
   nav(); window.scrollTo(0, 0);
   if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
   const top = stack[stack.length - 1];
-  if (top) return top.kind === 'card' ? showCard(top.k) : null;
+  if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'add' ? showAdd() : null;
+  if (S.tab === 'call') return showCall();
   if (S.tab === 'list') return showList();
   if (S.tab === 'board') return showView('b', 'Табло', 60e3);
   if (S.tab === 'funnel') return showView('f', 'Воронка');
@@ -198,13 +213,15 @@ async function showList(reload) {
   const base = LIST.filter(c => { const o = S.f; S.f = 'a'; const r = matches(c); S.f = o; return r; });
   const cnt = k => { const o = S.f; S.f = k; const n = base.filter(matches).length; S.f = o; return n; };
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
-  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Кандидаты</h1><button class="ghost" id="rl">Обновить</button></div>'
+  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
     + '<div class="chips" style="margin-top:10px">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>'
-    + '<div class="wrap"><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div></div>';
-  $('#rl').onclick = () => showList(true);
-  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Никого не нашёл</div>'; bindItems(); };
+    + '<div class="wrap"><div id="wabox"></div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+  $('#rl').onclick = () => { WA = null; showList(true); };
+  $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
+  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; bindItems(); farBtn(); };
+  farBtn(); waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
   bindItems();
@@ -222,6 +239,133 @@ function itemHtml(c) {
 }
 function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
 function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? d[1].replace(' / бронь', '') : code; }
+
+// ---------- поиск по всем заявкам и «Взять в работу» ----------
+function farBtn() {
+  const el = $('#far'); if (!el) return;
+  const q = S.q.trim(); if (q.replace(/\D/g, '').length < 4 && q.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '').length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = '<button class="more" id="farb">Искать «' + esc(q) + '» во всех заявках таблицы</button>';
+  $('#farb').onclick = async () => { el.innerHTML = '<div class="sec"><span class="spin"></span></div>';
+    try { const L = await api('find', { q: q }); el.innerHTML = '<div class="sec"><h2>Во всей таблице <small>' + L.length + (L.length >= 30 ? '+' : '') + '</small></h2>'
+      + (L.length ? L.map(leadRow).join('') : '<div class="sub">Никого не нашёл</div>') + '</div>'; bindLeads(el); } catch (e) { el.innerHTML = '<div class="sec sub">' + esc(e.message) + '</div>'; } };
+}
+function leadRow(L) {
+  const te = (ME.teamList.find(t => t.t === L.t) || {}).e || '';
+  return '<div class="list" style="padding:10px 0;border-top:1px solid var(--line)"><div class="name" style="font-size:15px">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div>'
+    + '<div class="meta">' + esc(L.ph) + ' · ' + (L.fresh ? 'заявка от ' + fmt(L.created, 'd') + ', звонков ' + L.tries + (L.res ? ', ' + esc(L.res) : '') : esc(L.st) + ' · ' + te + ' ' + esc(L.t || 'без команды')) + '</div>' + takeHtml(L) + '</div>';
+}
+function takeHtml(L) {
+  if (!L.fresh) return '<div class="acts tk"><button class="b" data-open="' + esc(L.k) + '">Открыть карточку</button></div>';
+  if (L.busy) return '<div class="warn tk">🔒 Заявку сейчас прозванивает ' + esc(L.busy) + '</div>';
+  return '<div class="acts tk">' + ME.takeTeams.map(t => { const i = ME.teamList.findIndex(x => x.t === t);
+    return '<button class="b main" data-take="' + esc(L.k) + '" data-t="' + i + '">✋ Взять в работу' + (ME.takeTeams.length > 1 ? ' · ' + ME.teamList[i].e + ' ' + esc(t) : '') + '</button>'; }).join('') + '</div>';
+}
+function bindLeads(root) {
+  root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.open }); render(); });
+  root.querySelectorAll('[data-take]').forEach(b => b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const t = await api('take', { k: b.dataset.take, t: b.dataset.t }); hap(); toast('В работе · ' + t); LIST = []; stack.push({ kind: 'card', k: b.dataset.take }); render(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '✋ Взять в работу'; } });
+}
+
+// ---------- подтверждение диалога в WhatsApp ----------
+let WA = null;
+async function waBox() {
+  const el = $('#wabox'); if (!el) return;
+  try { if (!WA) WA = await api('wa'); } catch (e) { return; }
+  if (!$('#wabox')) return;
+  if (!WA.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="sec wa"><h2>Диалог в WhatsApp есть? <small>' + WA.length + '</small></h2>' + WA.map(L => '<div class="row"><div class="t"><div class="name" style="font-size:14.5px">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div><div class="meta">'
+    + esc(L.ph) + (L.t ? ' · ' + esc(L.t) : '') + '</div></div>' + (L.ph ? '<button class="b" data-wo="' + esc(L.ph.replace(/\D/g, '')) + '" aria-label="Открыть WhatsApp">💬</button>' : '')
+    + '<button class="b arr" data-wy="' + esc(L.k) + '">Есть</button><button class="b bad" data-wn="' + esc(L.k) + '">Нет</button></div>').join('') + '</div>';
+  el.querySelectorAll('[data-wo]').forEach(b => b.onclick = () => { const u = 'https://wa.me/' + b.dataset.wo; tg ? tg.openLink(u) : window.open(u); });
+  const ansW = async (b, k, y) => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); WA = WA.filter(x => x.k !== k); LIST = []; waBox(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = y ? 'Есть' : 'Нет'; } };
+  el.querySelectorAll('[data-wy]').forEach(b => b.onclick = () => ansW(b, b.dataset.wy, 1));
+  el.querySelectorAll('[data-wn]').forEach(b => b.onclick = () => ansW(b, b.dataset.wn, 0));
+}
+
+// ---------- 📞 прозвон ----------
+let CALL = { lead: null, left: 0, done: null }, callTimer = null;
+async function showCall(fresh) {
+  clearInterval(callTimer);
+  if (!CALL.lead && !CALL.done || fresh) {
+    app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+    try { const q = await api('queue'); CALL = { lead: q.lead, left: q.left, done: null }; } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  }
+  const head = '<div class="top"><div class="toprow"><h1 class="h1">Прозвон</h1><button class="ghost" id="rl">Обновить</button></div></div>';
+  const L = CALL.lead, D = CALL.done;
+  if (D) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec"><h2>' + esc(D.n) + '</h2><div class="flyv" style="font-size:17px">' + esc(D.res) + (D.when ? ' · ' + esc(D.when) : '') + '</div>'
+      + (D.w ? '<div class="sub" style="margin-top:8px">Кандидат в работе за «' + esc(D.team) + '». Подтверждение диалога придёт вам и напарнику.</div><div class="acts" style="margin-top:12px"><button class="b" id="opn">Открыть карточку</button></div>' : '')
+      + (D.ask ? '<div class="sub" style="margin:12px 0 8px">Когда перезвонить?</div><div class="three"><button class="b" data-rc="1">Завтра</button><button class="b" data-rc="2">Послезавтра</button><button class="b" data-rc="0">Без даты</button></div>' : '')
+      + '</div>' + (D.ask ? '' : '<button class="big" id="nxt">📞 Следующая заявка</button>') + '</div>';
+  } else if (!L) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec" style="text-align:center;padding:28px 16px"><div class="sub">В очереди</div><div class="flyv" style="font-size:44px;margin:4px 0 2px">' + CALL.left + '</div><div class="sub">заявок за 7 дней, сначала свежие и с паспортом</div></div>'
+      + (CALL.left ? '<button class="big" id="nxt">📞 Дай заявку</button>' : '<div class="empty" style="padding:24px">🎉 Очередь пуста: всё разобрано или ждёт перезвона</div>') + '</div>';
+  } else {
+    const dg = L.ph.replace(/\D/g, '');
+    app.innerHTML = head + '<div class="wrap"><div class="hero lead"><div class="name">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div>'
+      + '<div class="meta">' + esc(L.c || '—') + ' · паспорт: ' + esc(L.pass || '—') + '</div><div class="timer" id="tmr"></div></div>'
+      + '<div class="sec"><div class="acts"><button class="b" id="cp">' + esc(L.ph || 'нет номера') + '</button>' + (dg ? '<button class="b main" id="wa">WhatsApp</button>' : '') + '</div>'
+      + '<dl class="kv" style="margin-top:14px"><dt>Заявка</dt><dd>' + fmt(L.created) + '</dd><dt>Звонков</dt><dd>' + L.tries + (L.res ? ', последний: ' + esc(L.res) : '') + '</dd><dt>Строка</dt><dd>' + L.row + '</dd></dl></div>'
+      + '<div class="sec"><h2>Результат звонка</h2><div class="col"><button class="b arr" data-r="w">✅ Перешёл в WhatsApp</button><div class="three"><button class="b" data-r="r">🔁 Перезвонить</button><button class="b bad" data-r="o">❌ Отказ</button><button class="b bad" data-r="n">🚫 Не подходит</button></div>'
+      + '<button class="more" data-r="s" style="text-align:center">↩️ Вернуть в очередь</button></div></div><div class="sub" style="text-align:center">в очереди ещё ' + CALL.left + '</div></div>';
+    const tick = () => { const el = $('#tmr'); if (!el) return clearInterval(callTimer); const ms = L.until - Date.now();
+      if (ms <= 0) { el.textContent = 'Время вышло — заявка вернулась в очередь'; el.style.color = 'var(--bad)'; return clearInterval(callTimer); }
+      el.textContent = 'Заявка ваша ещё ' + Math.floor(ms / 60e3) + ' мин ' + String(Math.floor(ms / 1e3) % 60).padStart(2, '0') + ' с'; };
+    tick(); callTimer = setInterval(tick, 1000);
+  }
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('rl', () => { CALL = { lead: null, left: 0, done: null }; showCall(true); });
+  on('nxt', async b => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const q = await api('next'); CALL = { lead: q.lead, left: q.left, done: null }; if (!q.lead) toast('Очередь пуста'); hap(); showCall(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '📞 Дай заявку'; } });
+  on('opn', () => { stack.push({ kind: 'card', k: D.k }); render(); });
+  on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(L.ph).then(() => toast('Номер скопирован')).catch(() => toast(L.ph)); });
+  on('wa', () => { const u = 'https://wa.me/' + L.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => {
+    const r = b.dataset.r;
+    if ((r === 'o' || r === 'n') && !(await confirmP((r === 'o' ? 'Отказ' : 'Не подходит') + ': ' + L.n + '?'))) return;
+    b.disabled = true; const t0 = b.innerHTML; b.innerHTML = '<span class="spin"></span>';
+    try { const d = await api('call', { k: L.k, r: r }); hap(); LIST = [];
+      if (r === 's') { toast('Вернул в очередь'); CALL = { lead: null, left: CALL.left + 1, done: null }; return showCall(); }
+      CALL.done = { k: L.k, n: L.n, res: d.res, team: d.team, w: r === 'w', ask: r === 'r' }; CALL.lead = null; showCall(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = t0; } });
+  app.querySelectorAll('[data-rc]').forEach(b => b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const t = await api('recall', { k: D.k, d: b.dataset.rc }); hap(); CALL.done.ask = false; CALL.done.when = t; showCall(); } catch (e) { hap('error'); toast(e.message); } });
+}
+
+// ---------- ➕ новый кандидат ----------
+let ADD = {};
+function showAdd() {
+  const T = ME.takeTeams, opt = (a, v) => a.map(x => '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+  app.innerHTML = '<div class="wrap"><div class="hero"><div class="name">Новый кандидат</div><div class="meta">Сразу попадёт «В работу»' + (T.length === 1 ? ' за «' + esc(T[0]) + '»' : '') + '</div></div>'
+    + '<div class="sec"><div class="form" style="margin:0">'
+    + '<label class="sub">ФИО<input id="an" autocomplete="off" value="' + esc(ADD.name || '') + '" placeholder="Как в паспорте" style="margin-top:4px"></label>'
+    + '<label class="sub">Телефон с кодом страны<input id="ap" inputmode="tel" value="' + esc(ADD.phone || '') + '" placeholder="+504 9998 8877" style="margin-top:4px"></label><div id="dup"></div>'
+    + '<label class="sub">Страна<select id="ac" style="margin-top:4px"><option value="">— выберите —</option>' + ME.countries.map(c => '<option value="' + esc(c) + '"' + (ADD.country === c ? ' selected' : '') + '>' + (ME.flagsEmo[c] || '🌍') + ' ' + esc(c) + '</option>').join('') + '<option value="*">Другая…</option></select></label>'
+    + '<input id="acx" class="hid" placeholder="Страна по-английски, как в таблице">'
+    + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label><input id="aw" class="hid" placeholder="Кто привёл">'
+    + (T.length > 1 ? '<label class="sub">Команда<select id="at" style="margin-top:4px">' + T.map(t => '<option value="' + esc(t) + '">' + ((ME.teamList.find(x => x.t === t) || {}).e || '') + ' ' + esc(t) + '</option>').join('') + '</select></label>' : '')
+    + '<button class="b main" id="asv" style="margin-top:6px">Сохранить</button></div></div></div>';
+  const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw');
+  ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*'); as.onchange = () => aw.classList.toggle('hid', as.value !== 'Сарафанка');
+  app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
+  const showDup = L => { const el = $('#dup'); if (!L) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="sec quiet" style="margin:4px 0"><div class="warn">Этот номер уже есть в таблице</div>' + leadRow(L).replace('border-top:1px solid var(--line)', 'border-top:0') + '</div>'; bindLeads(el); };
+  $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { showDup(await api('dup', { phone: v })); } catch (e) {} };
+  $('#asv').onclick = async () => {
+    const b = $('#asv'); ADD.name = $('#an').value.trim(); ADD.phone = $('#ap').value.trim(); ADD.country = ac.value === '*' ? acx.value.trim() : ac.value; ADD.src = as.value;
+    if (ADD.name.length < 2) return toast('Напишите ФИО'); if (ADD.phone.replace(/\D/g, '').length < 7) return toast('Нужен телефон с кодом страны'); if (!ADD.country) return toast('Выберите страну');
+    if (ADD.src === 'Сарафанка' && !aw.value.trim()) return toast('Напишите, кто привёл');
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const d = await api('add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: aw.value, team: $('#at') ? $('#at').value : T[0] });
+      if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = 'Сохранить'; return; }
+      hap(); toast('Кандидат добавлен'); ADD = {}; LIST = []; stack.pop(); stack.push({ kind: 'card', k: d.k }); render(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = 'Сохранить'; } };
+}
 
 // ---------- карточка ----------
 async function showCard(k) {
