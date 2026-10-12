@@ -140,6 +140,14 @@ const fmt = (ts, f) => { if (!ts) return '—'; const d = new Date(ts + MSK), p 
   return f === 'd' ? dd : f === 'dy' ? dd + '.' + d.getUTCFullYear() : dd + ' ' + hm; };
 const money = n => '$' + (Math.round(n * 100) / 100).toLocaleString('ru-RU');
 const STE = { 'В работе': ['🟡', 'w'], 'В пути': ['✈️', 't'], 'Доехал': ['✅', 'd'], 'Архив': ['🗄', 'z'] };
+const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || 0;
+function lsGet(k) { try { const x = localStorage.getItem('crm' + UID + ':' + k); return x ? JSON.parse(x) : null; } catch (e) { return null; } }   // прошлые данные — экран открывается сразу
+function lsSet(k, v) { try { localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (e) {} }
+let LISTP = null;
+function loadList(force) {                                  // один запрос списка на всех (старт + экран)
+  if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; lsSet('list', d); return d; }).finally(() => { LISTP = null; });
+  return LISTP;
+}
 let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', show: 'act' }, stack = [], boardTimer = null;
 
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
@@ -209,7 +217,7 @@ function matches(c) {
   return true;
 }
 async function showList(reload) {
-  if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { LIST = await api('list'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['x', 'Без команды']]);
   const base = LIST.filter(c => { const o = S.f; S.f = 'a'; const r = matches(c); S.f = o; return r; });
@@ -520,9 +528,10 @@ function bindCard(c) {
 // ---------- табло, воронка, отчёты (текст как в боте) ----------
 async function showView(v, title, every, off) {
   const load = async (first) => {
-    if (first) app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">' + title + '</h1><button class="ghost" id="rl">Обновить</button></div></div><div class="wrap"><div class="tg" id="vw"><span class="spin"></span></div></div>';
+    const ck = 'v_' + v + '_' + (off || 0), old = first ? lsGet(ck) : null;
+    if (first) app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">' + title + '</h1><button class="ghost" id="rl">Обновить</button></div></div><div class="wrap"><div class="tg" id="vw">' + (old || '<span class="spin"></span>') + '</div></div>';
     const r = $('#rl'); if (r) r.onclick = () => load(false);
-    try { const t = await api('view', { v: v, off: off || 0 }); const el = $('#vw'); if (el) el.innerHTML = t; } catch (e) { const el = $('#vw'); if (el) el.textContent = e.message; }
+    try { const t = await api('view', { v: v, off: off || 0 }); lsSet(ck, t); const el = $('#vw'); if (el) el.innerHTML = t; } catch (e) { const el = $('#vw'); if (el && !old) el.textContent = e.message; }
   };
   await load(true);
   if (every) boardTimer = setInterval(() => { if (!document.hidden) load(false); }, every);
@@ -547,10 +556,15 @@ async function showRep() {
   tg.ready(); tg.expand();
   try { tg.setHeaderColor('#0D1626'); tg.setBackgroundColor('#0D1626'); if (tg.setBottomBarColor) tg.setBottomBarColor('#0D1626'); } catch (e) {}
   tg.BackButton.onClick(back);
-  try { ME = await api('me'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  const pMe = api('me'), cME = lsGet('me'), cL = lsGet('list');
+  loadList().then(() => {                                     // свежий список пришёл — тихо обновляем экран, если человек на нём и не печатает
+    if (ME && !stack.length && S.tab === 'list' && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { const y = window.scrollY; showList(); window.scrollTo(0, y); }
+  }).catch(() => {});
   const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
   if (/^c_/.test(sp)) stack.push({ kind: 'card', k: sp.slice(2) });
-  render();
+  if (cME) { ME = cME; if (cL && cL.length) LIST = cL; render(); }
+  try { ME = await pMe; lsSet('me', ME); } catch (e) { if (!cME) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  if (!cME) render(); else nav();
 })();
 </script>
 </body>
