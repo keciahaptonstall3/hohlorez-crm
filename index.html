@@ -163,7 +163,7 @@ async function shrink(file) {                                  // фото — �
 
 // ---------- навигация ----------
 function nav() {
-  const tabs = (ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
+  const tabs = (ME.ind ? [['ind', '🪿', 'Заявки']] : []).concat(ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
   if (ME.boss) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
@@ -177,6 +177,7 @@ function render() {
   const top = stack[stack.length - 1];
   if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'add' ? showAdd() : null;
   if (S.tab === 'call') return showCall();
+  if (S.tab === 'ind') return showInd();
   if (S.tab === 'list') return showList();
   if (S.tab === 'board') return showView('b', 'Табло', 60e3);
   if (S.tab === 'funnel') return showView('f', 'Воронка');
@@ -294,6 +295,53 @@ async function waNext(k, n) {                                 // «диалог�
       if (d) { const t = await api('recall', { k: k, d: d }); toast('Перезвон: ' + t); return; } }
     toast(R.txt); } catch (e) { hap('error'); toast(e.message); }
 }
+// ---------- 🪿 заявки команды 4: пишем в WhatsApp ----------
+let IND = { lead: null, left: 0, done: null };
+async function showInd(fresh) {
+  clearInterval(callTimer);
+  if (!IND.lead && !IND.done || fresh) {
+    app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+    try { const q = await api('iq'); IND = { lead: q.lead, left: q.left, done: null }; } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  }
+  const head = '<div class="top"><div class="toprow"><h1 class="h1">Заявки 🪿</h1><button class="ghost" id="rl">Обновить</button></div></div>';
+  const L = IND.lead, D = IND.done;
+  if (D) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec"><h2>' + esc(D.n) + '</h2><div class="flyv" style="font-size:17px">' + esc(D.res) + '</div>'
+      + (D.lkey ? '<div class="sub" style="margin-top:8px">Кандидат «В работе» за 🪿 Командой 4.</div><div class="acts" style="margin-top:12px"><button class="b" id="opn">Открыть карточку</button></div>' : '')
+      + '</div><button class="big" id="nxt">🪿 Следующая заявка</button></div>';
+  } else if (!L) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec" style="text-align:center;padding:28px 16px"><div class="sub">Ждут сообщения</div><div class="flyv" style="font-size:44px;margin:4px 0 2px">' + IND.left + '</div><div class="sub">заявок, сначала свежие и с паспортом</div></div>'
+      + (IND.left ? '<button class="big" id="nxt">🪿 Дай заявку</button>' : '<div class="empty" style="padding:24px">🎉 Всё разобрано или ждёт повторной попытки</div>') + '</div>';
+  } else {
+    app.innerHTML = head + '<div class="wrap"><div class="hero lead"><div class="name">🇮🇩 ' + esc(L.n) + '</div>'
+      + '<div class="meta">' + esc(L.city || '—') + ' · паспорт: ' + esc(L.pass || '—') + '</div><div class="timer" id="tmr"></div></div>'
+      + '<div class="sec"><div class="acts"><button class="b" id="cp">' + esc(L.ph) + '</button><button class="b main" id="wa">Написать в WhatsApp</button></div>'
+      + '<dl class="kv" style="margin-top:14px"><dt>Заявка</dt><dd>' + fmt(L.created) + '</dd>' + (L.mail ? '<dt>Почта</dt><dd>' + esc(L.mail) + '</dd>' : '') + '<dt>Попыток</dt><dd>' + L.tries + (L.res ? ', ' + esc(L.res) : '') + '</dd></dl></div>'
+      + '<div class="sec"><h2>Результат</h2><div class="col"><button class="b arr" data-r="w">✅ Диалог есть → в работу</button><div class="two"><button class="b" data-r="r">🔁 Не ответил</button><button class="b bad" data-r="n">🚫 Не подходит</button></div>'
+      + '<button class="more" data-r="s" style="text-align:center">↩️ Вернуть в очередь</button></div></div><div class="sub" style="text-align:center">в очереди ещё ' + IND.left + '</div></div>';
+    const tick = () => { const el = $('#tmr'); if (!el) return clearInterval(callTimer); const ms = L.until - Date.now();
+      if (ms <= 0) { el.textContent = 'Время вышло — заявка вернулась в очередь'; el.style.color = 'var(--bad)'; return clearInterval(callTimer); }
+      el.textContent = 'Заявка ваша ещё ' + Math.floor(ms / 60e3) + ' мин ' + String(Math.floor(ms / 1e3) % 60).padStart(2, '0') + ' с'; };
+    tick(); callTimer = setInterval(tick, 1000);
+  }
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('rl', () => { IND = { lead: null, left: 0, done: null }; showInd(true); });
+  on('nxt', async b => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const q = await api('inext'); IND = { lead: q.lead, left: q.left, done: null }; if (!q.lead) toast('Заявок нет'); hap(); showInd(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '🪿 Дай заявку'; } });
+  on('opn', () => { stack.push({ kind: 'card', k: D.lkey }); render(); });
+  on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(L.ph).then(() => toast('Номер скопирован')).catch(() => toast(L.ph)); });
+  on('wa', () => { const u = 'https://wa.me/' + L.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => {
+    const r = b.dataset.r;
+    if (r === 'n' && !(await confirmP('Не подходит: ' + L.n + '?'))) return;
+    b.disabled = true; const t0 = b.innerHTML; b.innerHTML = '<span class="spin"></span>';
+    try { const d = await api('ires', { k: L.k, r: r }); hap(); LIST = [];
+      if (r === 's') { toast('Вернул в очередь'); IND = { lead: null, left: IND.left + 1, done: null }; return showInd(); }
+      IND.done = { n: L.n, res: d.res, lkey: d.lkey || '' }; IND.lead = null; showInd(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = t0; } });
+}
+
 // ---------- 📞 прозвон ----------
 let CALL = { lead: null, left: 0, done: null }, callTimer = null;
 async function showCall(fresh) {
