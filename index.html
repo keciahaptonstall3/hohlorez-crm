@@ -226,6 +226,8 @@ function matches(c) {
   if (S.show === 'act' && !act) return false;
   if (S.show === 'done' && c.st !== 'Доехал') return false;
   if (S.show === 'arch' && c.st !== 'Архив') return false;
+  if (S.cm === 'yes' && !c.teamCm) return false;
+  if (S.cm === 'no' && c.teamCm) return false;
   if (f === 'x' && c.t) return false;
   if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
   if (f === 'fl' && !(c.fl || []).length) return false;
@@ -244,18 +246,21 @@ async function showList(reload) {
   const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['x', 'Без команды']]);
   const base = LIST.filter(c => { const o = S.f; S.f = 'a'; const r = matches(c); S.f = o; return r; });
   const cnt = k => { const o = S.f; S.f = k; const n = base.filter(matches).length; S.f = o; return n; };
+  const cmCount = k => { const o = S.cm; S.cm = k; const n = LIST.filter(matches).length; S.cm = o; return n; };
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
   app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
     + '<div class="chips" style="margin-top:10px">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
-    + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>'
+    + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + '<div class="chips">' + [['yes', 'С комментариями от команды'], ['no', 'Без комментариев']].map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div></div>'
     + '<div class="wrap"><div id="wabox"></div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
-  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; bindItems(); farBtn(); };
+  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); bindItems(); farBtn(); };
   farBtn(); waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
+  app.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { S.cm = S.cm === b.dataset.cm ? '' : b.dataset.cm; showList(); });
   bindItems();
 }
 function itemHtml(c) {
