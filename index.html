@@ -187,7 +187,7 @@ function render() {
   if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'add' ? showAdd() : null;
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
-  if (S.tab === 'list') return showList();
+  if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
   if (S.tab === 'board') return showView('b', 'Табло', 60e3);
   if (S.tab === 'funnel') return showView('f', 'Воронка');
   if (S.tab === 'rep') return showRep();
@@ -249,7 +249,7 @@ function itemHtml(c) {
     + tripHtml(c)
     + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>';
 }
-function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
+function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
 function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? d[1].replace(' / бронь', '') : code; }
 
 // ---------- поиск по всем заявкам и «Взять в работу» ----------
@@ -436,8 +436,13 @@ function showAdd() {
 }
 
 // ---------- карточка ----------
+let CARDSEC = null;                                          // раздел карточки, где нажали кнопку (его поля после сохранения очищаются)
 async function showCard(k, keep) {                          // keep — обновить на месте: без крутилки и без прыжка наверх
-  const y = keep ? window.scrollY : 0;
+  const y = keep ? window.scrollY : 0, typed = {};
+  if (keep) app.querySelectorAll('input[id],textarea[id]').forEach(el => {   // недописанное в других разделах не теряем
+    if (el.type === 'file' || (CARDSEC && CARDSEC.contains(el))) return;
+    if (el.value !== el.defaultValue) typed[el.id] = el.value; });
+  CARDSEC = null;
   if (!keep) app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
   let c; try { c = await api('card', { k: k }); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
   const se = STE[c.st] || ['▫️', 'z'], tinfo = ME.teamList.find(t => t.t === c.t), dg = c.ph.replace(/\D/g, '');
@@ -482,12 +487,12 @@ async function showCard(k, keep) {                          // keep — обно
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
   app.innerHTML = h + cmH + docsH + flyH + spH + stH + askH + dat + logH + '</div>';
-  if (keep) window.scrollTo(0, y);
+  if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c);
 }
 function bindCard(c) {
   const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
-  const run = async (btn, op, a, msg) => { if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
+  const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); return d; } catch (e) { hap('error'); toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
@@ -540,18 +545,20 @@ async function showView(v, title, every, off) {
   await load(true);
   if (every) boardTimer = setInterval(() => { if (!document.hidden) load(false); }, every);
 }
-async function showRep() {
+async function showRep(inPlace) {
   const R = [['s', 'Сводка'], ['am', 'Утро'], ['m', 'Траты'], ['l', 'Потери'], ['k', 'Страны'], ['j', 'Журнал']];
   S.rv = S.rv || 's'; S.off = S.off || 0;
-  const monthly = 'mlk'.indexOf(S.rv) >= 0, paged = S.rv === 'j';
+  const monthly = 'mlk'.indexOf(S.rv) >= 0, paged = S.rv === 'j', ck = 'r_' + S.rv + '_' + S.off, old = lsGet(ck), y = inPlace ? window.scrollY : 0, vh = inPlace && $('#vw') ? $('#vw').offsetHeight : 0;
   app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Отчёт</h1><button class="ghost" id="rl">Обновить</button></div><div class="chips">'
     + R.map(x => '<button class="chip' + (S.rv === x[0] ? ' on' : '') + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + (monthly || paged ? '<div class="mnav"><button class="chip" id="pv">← ' + (paged ? 'Раньше' : 'Прошлый месяц') + '</button><button class="chip" id="nx"' + (S.off ? '' : ' disabled') + '>' + (paged ? 'Позже' : 'Следующий') + '</button></div>' : '')
-    + '</div><div class="wrap"><div class="tg" id="vw"><span class="spin"></span></div></div>';
-  app.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { S.rv = b.dataset.r; S.off = 0; showRep(); });
-  const pv = $('#pv'), nx = $('#nx'); if (pv) pv.onclick = () => { S.off++; showRep(); }; if (nx) nx.onclick = () => { S.off = Math.max(0, S.off - 1); showRep(); };
-  $('#rl').onclick = () => showRep();
-  try { $('#vw').innerHTML = await api('view', { v: S.rv, off: S.off }); } catch (e) { $('#vw').textContent = e.message; }
+    + '</div><div class="wrap"><div class="tg" id="vw"' + (vh ? ' style="min-height:' + vh + 'px"' : '') + '>' + (old || '<span class="spin"></span>') + '</div></div>';
+  if (inPlace) window.scrollTo(0, y);
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { S.rv = b.dataset.r; S.off = 0; showRep(true); });
+  const pv = $('#pv'), nx = $('#nx'); if (pv) pv.onclick = () => { S.off++; showRep(true); }; if (nx) nx.onclick = () => { S.off = Math.max(0, S.off - 1); showRep(true); };
+  $('#rl').onclick = () => showRep(true);
+  const want = ck;
+  try { const t = await api('view', { v: S.rv, off: S.off }); lsSet(ck, t); const el = $('#vw'); if (el && want === 'r_' + S.rv + '_' + S.off) { el.innerHTML = t; el.style.minHeight = ''; } } catch (e) { const el = $('#vw'); if (el && !old) el.textContent = e.message; }
 }
 
 // ---------- старт ----------
