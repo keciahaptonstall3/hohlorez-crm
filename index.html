@@ -173,7 +173,7 @@ async function shrink(file) {                                  // фото — �
 // ---------- навигация ----------
 function nav() {
   const tabs = (ME.ind ? [['ind', '🪿', 'Заявки']] : []).concat(ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
-  if (ME.boss) tabs.push(['rep', '📋', 'Отчёт']);
+  if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.tab = b.dataset.t; render(); });
@@ -553,11 +553,21 @@ async function showRep(inPlace) {
   app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Отчёт</h1><button class="ghost" id="rl">Обновить</button></div><div class="chips">'
     + R.map(x => '<button class="chip' + (S.rv === x[0] ? ' on' : '') + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + (monthly || paged ? '<div class="mnav"><button class="chip" id="pv">← ' + (paged ? 'Раньше' : 'Прошлый месяц') + '</button><button class="chip" id="nx"' + (S.off ? '' : ' disabled') + '>' + (paged ? 'Позже' : 'Следующий') + '</button></div>' : '')
-    + '</div><div class="wrap"><div class="tg" id="vw"' + (vh ? ' style="min-height:' + vh + 'px"' : '') + '>' + (old || '<span class="spin"></span>') + '</div></div>';
+    + '</div><div class="wrap">' + (S.rv === 'm' && !S.off && ME.infra ? '<div class="sec"><h2>🏗 Трата на инфраструктуру</h2><div class="form" style="margin:0"><div class="two"><input id="is" inputmode="decimal" placeholder="Сумма, $"><select id="ic">'
+      + ME.infra.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div><input id="icm" placeholder="Комментарий (необязательно)"><div class="two"><button class="b" id="iph">📷 Чек</button><button class="b main" id="ib">Добавить</button></div>'
+      + '<input type="file" id="ifile" class="hid" accept="image/*"></div></div>' : '') + '<div class="tg" id="vw"' + (vh ? ' style="min-height:' + vh + 'px"' : '') + '>' + (old || '<span class="spin"></span>') + '</div></div>';
   if (inPlace) window.scrollTo(0, y);
   app.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { S.rv = b.dataset.r; S.off = 0; showRep(true); });
   const pv = $('#pv'), nx = $('#nx'); if (pv) pv.onclick = () => { S.off++; showRep(true); }; if (nx) nx.onclick = () => { S.off = Math.max(0, S.off - 1); showRep(true); };
   $('#rl').onclick = () => showRep(true);
+  if ($('#ib')) {                                             // 🏗 инфраструктура: телефония, тильда, нейросети…
+    const fi = $('#ifile'); $('#iph').onclick = () => fi.click(); fi.onchange = () => { $('#iph').textContent = fi.files[0] ? '📷 Чек ✓' : '📷 Чек'; };
+    $('#ib').onclick = async () => { const b = $('#ib'), sum = $('#is').value.trim(); if (!(Number(sum.replace(',', '.')) > 0)) return toast('Введите сумму в долларах');
+      b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+      try { const a = { sum: sum, cat: $('#ic').value, cm: $('#icm').value.trim() }; if (fi.files[0]) { const x = await shrink(fi.files[0]); a.img = x.b; a.mime = x.mime; }
+        await api('infra', a); hap(); toast('Записал: ' + a.cat + ' $' + sum); showRep(true); }
+      catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = 'Добавить'; } };
+  }
   const want = ck;
   try { const t = await api('view', { v: S.rv, off: S.off }); lsSet(ck, t); const el = $('#vw'); if (el && want === 'r_' + S.rv + '_' + S.off) { el.innerHTML = t; el.style.minHeight = ''; } } catch (e) { const el = $('#vw'); if (el && !old) el.textContent = e.message; }
 }
