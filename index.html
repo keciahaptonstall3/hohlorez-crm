@@ -488,7 +488,7 @@ async function showCard(k, keep) {                          // keep — обно
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
-  app.innerHTML = h + cmH + docsH + flyH + spH + stH + askH + dat + logH + '</div>';
+  app.innerHTML = h + cmH + askH + docsH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c);
 }
