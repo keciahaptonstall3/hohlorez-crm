@@ -456,7 +456,7 @@ async function showCard(k, keep) {                          // keep — обно
     + '<dt>Заявка</dt><dd>' + fmt(c.created) + ', звонков ' + c.tries + (c.res ? '. ' + esc(c.res) : '') + '</dd>' + (c.src ? '<dt>Источник</dt><dd>' + esc(c.src) + '</dd>' : '') + '</dl></div>';
   // документы
   let docsH = '<div class="sec"><h2>Документы <small>' + c.docs.length + ' из ' + ME.docs.length + '</small></h2><div class="docs">'
-    + ME.docs.map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + '</div>'
+    + ME.docs.map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + (c.can && ME.ftypes.indexOf('Другое') >= 0 ? '<button class="doc" id="dother">📎 Другое</button>' : '') + '</div>'
     + (c.can ? '<div class="sub" style="margin-top:10px">Нажмите на документ — откроется камера или галерея, фото сохранится и документ отметится. <button class="more" id="mk" style="display:inline;width:auto;padding:0">Отметить без файла</button></div><div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid" accept="image/*,video/*,application/pdf"></div>' : '')
     + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</li>').join('') + '</ul>'
       + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
@@ -508,6 +508,7 @@ function bindCard(c) {
     $('#file').click();
   });
   on('up', () => $('#file').click());
+  on('dother', () => { const sel = $('#ft'); if (sel) sel.value = 'Другое'; $('#file').click(); });   // любой другой файл — не входит в счёт «N из M»
   const fi = $('#file'); if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f) return;
     if (f.size > 20e6) return toast('Файл больше 20 МБ — пришлите его через бот');
     const btn = $('#up'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
