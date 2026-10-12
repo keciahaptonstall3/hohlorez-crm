@@ -121,6 +121,10 @@ a{color:var(--blue)}
 .wa .row:first-of-type{border-top:0}
 .wa .row .t{flex:1;min-width:0}
 .wa .row .b{flex:none;min-width:0;padding:9px 12px}
+.wa-entry+.wa-entry{border-top:1px solid var(--line)}
+.wa-entry .row{border-top:0}
+.wa-ping{display:block;width:100%;margin:2px 0 10px;border:1px solid var(--line);color:var(--amber)}
+.wa-ping:disabled{color:var(--muted);opacity:.7;cursor:default}
 .seg{display:flex;gap:6px}.seg .chip{flex:1;text-align:center}
 .tk{margin-top:10px}
 .hdr{display:flex;gap:14px;align-items:baseline}
@@ -302,9 +306,22 @@ async function waBox() {
   try { if (!WA) WA = await api('wa'); } catch (e) { return; }
   if (!$('#wabox')) return;
   if (!WA.length) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div class="sec wa"><h2>Диалог в WhatsApp есть? <small>' + WA.length + '</small></h2>' + WA.map(L => '<div class="row"><div class="t"><div class="name" style="font-size:14.5px">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div><div class="meta">'
+  el.innerHTML = '<div class="sec wa"><h2>Диалог в WhatsApp есть? <small>' + WA.length + '</small></h2>' + WA.map(L => '<div class="wa-entry"><div class="row"><div class="t"><div class="name" style="font-size:14.5px">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div><div class="meta">'
     + esc(L.ph) + (L.t ? ' · ' + esc(L.t) : '') + '</div></div>' + (L.ph ? '<button class="b" data-wo="' + esc(L.ph.replace(/\D/g, '')) + '" aria-label="Открыть WhatsApp">💬</button>' : '')
-    + '<button class="b arr" data-wy="' + esc(L.k) + '">Есть</button><button class="b bad" data-wn="' + esc(L.k) + '">Нет</button></div>').join('') + '</div>';
+    + '<button class="b arr" data-wy="' + esc(L.k) + '">Есть</button><button class="b bad" data-wn="' + esc(L.k) + '">Нет</button></div>'
+    + (L.ping ? '<button class="b wa-ping" data-wp="' + esc(L.k) + '">🔔 Напомнить прозвонеру</button>' : '') + '</div>').join('') + '</div>';
+  el.querySelectorAll('[data-wp]').forEach(b => {
+    const L = WA.find(x => x.k === b.dataset.wp);
+    const cooling = () => { const left = Math.ceil((L.ping.until - Date.now()) / 60e3); if (left > 0) { b.disabled = true; b.textContent = '✅ Напоминание отправлено · повтор через ' + left + ' мин.';
+      setTimeout(() => { if (b.isConnected && !cooling()) { b.disabled = false; b.textContent = '🔔 Напомнить прозвонеру'; } }, Math.min(60e3, L.ping.until - Date.now())); return true; } return false; };
+    cooling();
+    b.onclick = async () => {
+      if (cooling()) return;
+      b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+      try { L.ping = await api('waping', { k: L.k }); hap(); toast('✅ Напоминание отправлено: ' + L.ping.name); cooling(); }
+      catch (e) { hap('error'); toast(e.message); b.disabled = false; b.textContent = '🔔 Напомнить прозвонеру'; }
+    };
+  });
   el.querySelectorAll('[data-wo]').forEach(b => b.onclick = () => { const u = 'https://wa.me/' + b.dataset.wo; tg ? tg.openLink(u) : window.open(u); });
   const ansW = async (b, k, y) => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
     try { const d = await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); const L = WA.find(x => x.k === k) || {}; WA = WA.filter(x => x.k !== k); LDIRTY = true; waBox();
