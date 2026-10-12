@@ -143,7 +143,7 @@ const STE = { 'В работе': ['🟡', 'w'], 'В пути': ['✈️', 't'], 
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || 0;
 function lsGet(k) { try { const x = localStorage.getItem('crm' + UID + ':' + k); return x ? JSON.parse(x) : null; } catch (e) { return null; } }   // прошлые данные — экран открывается сразу
 function lsSet(k, v) { try { localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (e) {} }
-let LISTP = null;
+let LISTP = null, LDIRTY = false;                          // LDIRTY — данные менялись: список показываем сразу, свежий подтягиваем в фоне
 function loadList(force) {                                  // один запрос списка на всех (старт + экран)
   if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; lsSet('list', d); return d; }).finally(() => { LISTP = null; });
   return LISTP;
@@ -217,6 +217,8 @@ function matches(c) {
   return true;
 }
 async function showList(reload) {
+  if (LIST.length && LDIRTY && !reload) { LDIRTY = false;
+    loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['x', 'Без команды']]);
@@ -273,7 +275,7 @@ function takeHtml(L) {
 function bindLeads(root) {
   root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.open }); render(); });
   root.querySelectorAll('[data-take]').forEach(b => b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-    try { const t = await api('take', { k: b.dataset.take, t: b.dataset.t }); hap(); toast('В работе · ' + t); LIST = []; stack.push({ kind: 'card', k: b.dataset.take }); render(); }
+    try { const t = await api('take', { k: b.dataset.take, t: b.dataset.t }); hap(); toast('В работе · ' + t); LDIRTY = true; stack.push({ kind: 'card', k: b.dataset.take }); render(); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '✋ Взять в работу'; } });
 }
 
@@ -289,7 +291,7 @@ async function waBox() {
     + '<button class="b arr" data-wy="' + esc(L.k) + '">Есть</button><button class="b bad" data-wn="' + esc(L.k) + '">Нет</button></div>').join('') + '</div>';
   el.querySelectorAll('[data-wo]').forEach(b => b.onclick = () => { const u = 'https://wa.me/' + b.dataset.wo; tg ? tg.openLink(u) : window.open(u); });
   const ansW = async (b, k, y) => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-    try { const d = await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); const L = WA.find(x => x.k === k) || {}; WA = WA.filter(x => x.k !== k); LIST = []; waBox();
+    try { const d = await api('wa', { k: k, y: y }); hap(); toast(y ? 'Записал: диалог есть' : 'Записал: диалога нет'); const L = WA.find(x => x.k === k) || {}; WA = WA.filter(x => x.k !== k); LDIRTY = true; waBox();
       if (d && d.ask) waNext(k, L.n || 'кандидат'); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = y ? 'Есть' : 'Нет'; } };
   el.querySelectorAll('[data-wy]').forEach(b => b.onclick = () => ansW(b, b.dataset.wy, 1));
@@ -299,7 +301,7 @@ async function waBox() {
 async function waNext(k, n) {                                 // «диалога нет» — что дальше
   const id = await popup('Диалога нет', n + ': что дальше?', [{ id: 'r', type: 'default', text: '🔁 Перезвонить' }, { id: 'w', type: 'default', text: '⏳ Ещё пишем' }, { id: 'z', type: 'destructive', text: '🗄 В архив' }]);
   if (!id) { toast('Не решили — через сутки бот сам вернёт на перезвон'); return; }
-  try { const R = await api('wano', { k: k, a: id }); hap(); LIST = [];
+  try { const R = await api('wano', { k: k, a: id }); hap(); LDIRTY = true;
     if (R.recall) { const d = await popup('Перезвон', 'Когда перезвонить?', [{ id: '1', type: 'default', text: 'Завтра' }, { id: '2', type: 'default', text: 'Послезавтра' }, { id: '0', type: 'default', text: 'Через 3 часа' }]);
       if (d) { const t = await api('recall', { k: k, d: d }); toast('Перезвон: ' + t); return; } }
     toast(R.txt); } catch (e) { hap('error'); toast(e.message); }
@@ -345,7 +347,7 @@ async function showInd(fresh) {
     const r = b.dataset.r;
     if (r === 'n' && !(await confirmP('Не подходит: ' + L.n + '?'))) return;
     b.disabled = true; const t0 = b.innerHTML; b.innerHTML = '<span class="spin"></span>';
-    try { const d = await api('ires', { k: L.k, r: r }); hap(); LIST = [];
+    try { const d = await api('ires', { k: L.k, r: r }); hap(); LDIRTY = true;
       if (r === 's') { toast('Вернул в очередь'); IND = { lead: null, left: IND.left + 1, done: null }; return showInd(); }
       IND.done = { n: L.n, res: d.res, lkey: d.lkey || '' }; IND.lead = null; showInd(); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = t0; } });
@@ -394,7 +396,7 @@ async function showCall(fresh) {
     const r = b.dataset.r;
     if ((r === 'o' || r === 'n') && !(await confirmP((r === 'o' ? 'Отказ' : 'Не подходит') + ': ' + L.n + '?'))) return;
     b.disabled = true; const t0 = b.innerHTML; b.innerHTML = '<span class="spin"></span>';
-    try { const d = await api('call', { k: L.k, r: r }); hap(); LIST = [];
+    try { const d = await api('call', { k: L.k, r: r }); hap(); LDIRTY = true;
       if (r === 's') { toast('Вернул в очередь'); CALL = { lead: null, left: CALL.left + 1, done: null }; return showCall(); }
       CALL.done = { k: L.k, n: L.n, res: d.res, team: d.team, w: r === 'w', ask: r === 'r' }; CALL.lead = null; showCall(); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = t0; } });
@@ -429,13 +431,14 @@ function showAdd() {
     b.disabled = true; b.innerHTML = '<span class="spin"></span>';
     try { const d = await api('add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: aw.value, team: $('#at') ? $('#at').value : T[0] });
       if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = 'Сохранить'; return; }
-      hap(); toast('Кандидат добавлен'); ADD = {}; LIST = []; stack.pop(); stack.push({ kind: 'card', k: d.k }); render(); }
+      hap(); toast('Кандидат добавлен'); ADD = {}; LDIRTY = true; stack.pop(); stack.push({ kind: 'card', k: d.k }); render(); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = 'Сохранить'; } };
 }
 
 // ---------- карточка ----------
-async function showCard(k) {
-  app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+async function showCard(k, keep) {                          // keep — обновить на месте: без крутилки и без прыжка наверх
+  const y = keep ? window.scrollY : 0;
+  if (!keep) app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
   let c; try { c = await api('card', { k: k }); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
   const se = STE[c.st] || ['▫️', 'z'], tinfo = ME.teamList.find(t => t.t === c.t), dg = c.ph.replace(/\D/g, '');
   const pct = Math.min(100, Math.round(c.ok / ME.limit * 100)), barCls = c.ok >= ME.limit ? 'bad' : c.ok >= ME.limit * .8 ? 'w' : '';
@@ -479,10 +482,11 @@ async function showCard(k) {
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
   app.innerHTML = h + cmH + docsH + flyH + spH + stH + askH + dat + logH + '</div>';
+  if (keep) window.scrollTo(0, y);
   bindCard(c);
 }
 function bindCard(c) {
-  const k = c.k, again = msg => { if (msg) toast(msg); hap(); LIST = []; showCard(k); };
+  const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
   const run = async (btn, op, a, msg) => { if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); return d; } catch (e) { hap('error'); toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
