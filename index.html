@@ -252,7 +252,7 @@ async function showList(reload) {
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
     + '<div class="chips" style="margin-top:10px">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
-    + '<div class="chips">' + [['yes', 'С комментариями от команды'], ['no', 'Без комментариев']].map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div></div>'
+    + '<div class="chips">' + [['yes', 'С комментариями'], ['no', 'Без комментариев']].map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div></div>'
     + '<div class="wrap"><div id="wabox"></div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
