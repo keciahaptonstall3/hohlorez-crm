@@ -169,6 +169,34 @@ input,textarea,select{transition:border-color 160ms ease}
 @keyframes party-star{0%{opacity:0;transform:scale(.2) rotate(-45deg)}60%{opacity:1;transform:scale(1.2) rotate(10deg)}100%{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ui-enter,.ui-sheet>div,.toast,.cm-reminder.cm-attention,.cm-editor,.party-card,.party-bottle,.party-glasses,.party-star{animation:none!important}.b,.chip,.doc,.item,.nav button,.more,input,textarea,select{transition:none!important}.b:active,.chip:active,.doc:active,.nav button:active,.more:active{transform:none}}
 
+.budget-alert{border:1px solid var(--bad);background:color-mix(in srgb,var(--bad) 9%,var(--panel));color:var(--bad)}
+.budget-alert .sub{color:var(--text)}
+.signal-art{height:106px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.signal-face{display:inline-block;font-size:64px;position:relative;z-index:1}
+.reaction .party-card{border-color:var(--bad);background:radial-gradient(ellipse at top,color-mix(in srgb,var(--bad) 16%,var(--panel)),var(--panel) 65%)}
+.reaction .party-card h2{color:var(--bad)}
+.reaction .acts{justify-content:center;flex-wrap:wrap}
+.reaction .acts .b{min-height:44px}
+.signal-list{display:grid;gap:7px;margin-bottom:14px;text-align:left}
+.signal-list .b{text-align:left;font-size:13px;overflow-wrap:anywhere}
+.reaction-scam .signal-face{animation:angry-shake 240ms ease-in-out 5}
+.signal-spark{position:absolute;font-size:29px;animation:scam-spark 1.2s ease-out both}
+.signal-spark.left{left:20px;top:30px}.signal-spark.right{right:18px;top:34px;animation-delay:150ms}
+@keyframes angry-shake{25%{transform:translateX(-5px) rotate(-6deg)}75%{transform:translateX(5px) rotate(6deg)}}
+@keyframes scam-spark{from{opacity:0;transform:translateY(12px) scale(.5)}40%{opacity:1;transform:translateY(-8px) scale(1.15)}to{opacity:0;transform:translateY(-35px) scale(.7)}}
+.reaction-lost .party-card{border-color:var(--blue);background:radial-gradient(ellipse at top,color-mix(in srgb,var(--blue) 12%,var(--panel)),var(--panel) 65%)}
+.reaction-lost .party-card h2{color:var(--blue)}
+.reaction-lost .signal-face{animation:sad-sigh 1.5s ease-in-out 2}
+@keyframes sad-sigh{50%{transform:translateY(6px) rotate(-8deg)}}
+.signal-rain{position:absolute;inset:0;pointer-events:none}
+.signal-rain i{position:absolute;top:0;width:2px;height:15px;background:var(--blue);opacity:0;border-radius:2px;animation:sad-rain 1.3s linear 2 both}
+@keyframes sad-rain{0%{opacity:0;transform:translateY(-20px)}20%{opacity:.55}100%{opacity:0;transform:translateY(110px)}}
+.reaction-budget .signal-face{animation:alarm-rock 650ms ease-in-out 4}
+.alarm-ring{position:absolute;width:80px;height:80px;border:2px solid var(--bad);border-radius:50%;animation:alarm-wave 1s ease-out 3 both}
+@keyframes alarm-rock{25%{transform:rotate(-8deg) scale(1.04)}75%{transform:rotate(8deg) scale(1.04)}}
+@keyframes alarm-wave{from{opacity:.65;transform:scale(.8)}to{opacity:0;transform:scale(1.5)}}
+@media(prefers-reduced-motion:reduce){.signal-face,.signal-spark,.signal-rain i,.alarm-ring{animation:none!important}.signal-rain,.signal-spark,.alarm-ring{display:none}}
+
 </style>
 </head>
 <body>
@@ -312,6 +340,7 @@ function itemHtml(c) {
   return '<div class="item-wrap"><button class="item" data-k="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '<span class="flags">' + flagSet(c) + '</span></div>'
     + '<div class="days"><b>' + (c.days || 0) + '</b><span>' + (c.days === 1 ? 'день' : c.days >= 2 && c.days <= 4 ? 'дня' : 'дней') + '</span></div>'
     + '<div class="meta">' + bits.filter(Boolean).map(esc).join(', ') + '</div>'
+    + (activeCandidate(c) && budgetExhausted(c) ? '<div class="warn" style="grid-column:1/-1">🚨 Бюджет: ' + money(c.sp) + ' из ' + money(ME.limit) + '</div>' : '')
     + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
     + tripHtml(c)
     + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + cmQuickHtml(c) + '</div>';
@@ -568,7 +597,7 @@ async function showCard(k, keep) {                          // keep — обно
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
-  app.innerHTML = h + cmH + askH + docsH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
+  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c);
 }
@@ -722,13 +751,14 @@ function observeGoals(list) {
   const now = Date.now(), day = new Date(now + MSK).toISOString().slice(0, 10);
   const memory = lsGet('goal-memory') || { candidates: {}, seen: {} }; memory.candidates = memory.candidates || {}; memory.seen = memory.seen || {};
   Object.keys(memory.seen).forEach(k => { if (now - memory.seen[k] > 8 * 864e5) delete memory.seen[k]; });
+  const signals = collectSignals(list, memory, now, day);
   const events = [], candidateState = {};
-  const award = (id, title, text) => { if (memory.seen[id]) return; memory.seen[id] = now; events.push({ title, text }); };
+  const award = (id, title, text) => { if (signals.length || memory.seen[id]) return; memory.seen[id] = now; events.push({ title, text }); };
   list.forEach(c => {
     const old = memory.candidates[c.k], ready = docsComplete(c);
-    candidateState[c.k] = { docs: ready, st: c.st };
+    candidateState[c.k] = { docs: ready, st: c.st, budget: budgetExhausted(c), arch: String(c.arch || '') };
     if (!old || !c.t) return;
-    if (ready && !old.docs) award('docs:' + c.k + ':' + day, 'Документы собраны! 🍾', c.n + '\n' + c.t + ' закрыла полный комплект документов. Красиво сработали!');
+    if (c.st !== 'Архив' && ready && !old.docs) award('docs:' + c.k + ':' + day, 'Документы собраны! 🍾', c.n + '\n' + c.t + ' закрыла полный комплект документов. Красиво сработали!');
     if (c.st === 'В пути' && old.st !== c.st) award('flight:' + c.k + ':' + day, 'Кандидат в пути! ✈️', c.n + '\nЕщё один важный этап закрыт. Спасибо команде ' + c.t.replace('Команда ', '') + '!');
     if (c.st === 'Доехал' && old.st !== c.st) award('arrived:' + c.k, 'Доехал! 🥂', c.n + '\nВы довели кандидата до результата. Отличная работа, ' + c.t.toLowerCase() + '!');
   });
@@ -740,10 +770,11 @@ function observeGoals(list) {
   });
   memory.candidates = candidateState; lsSet('goal-memory', memory);
   // Одно поздравление за один ответ сервера; одновременные цели перечисляем вместе.
+  if (signals.length) { showReaction(signals[0].kind, signals[0].c, signals.slice(1)); return; }
   if (events.length) { const extra = events.slice(1); celebrate(events[0].title, events[0].text + (extra.length ? '\n\nТакже закрыто: ' + extra.slice(0, 2).map(e => e.title).join(' · ') + (extra.length > 2 ? '\nИ ещё ' + (extra.length - 2) + ' целей!' : '') : '')); }
 }
 function refreshGoalsAfterWrite(op) {
-  if (['comment', 'docs', 'upload', 'stage'].indexOf(op) < 0) return;
+  if (['comment', 'docs', 'upload', 'stage', 'spend'].indexOf(op) < 0) return;
   clearTimeout(GOAL_TIMER);
   GOAL_TIMER = setTimeout(() => { loadList(true).then(() => { if (cmListVisible() && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) cmRedraw(); }).catch(() => {}); }, 450);
 }
@@ -773,6 +804,48 @@ function celebrate(title, text) {
     raf = requestAnimationFrame(frame);
   }; raf = requestAnimationFrame(frame);
 }
+const budgetExhausted = c => Number(ME && ME.limit) > 0 && Number(c.sp) >= Number(ME.limit);
+function budgetBanner(c, amount) {
+  const spent = amount === undefined ? Number(c.sp) || 0 : Number(amount) || 0;
+  if (!(Number(ME && ME.limit) > 0) || spent < Number(ME.limit)) return '';
+  return '<div class="sec budget-alert"><b>🚨 Бюджет ' + (spent > ME.limit ? 'превышен' : 'исчерпан') + '</b><div class="sub" style="margin-top:6px">Учтено ' + money(spent) + ' из ' + money(ME.limit) + (spent > ME.limit ? ' · сверх лимита ' + money(spent - ME.limit) : '') + '</div></div>';
+}
+function collectSignals(list, memory, now, day) {
+  const signals = [];
+  const add = (id, kind, c) => { if (memory.seen[id]) return; memory.seen[id] = now; signals.push({kind,c}); };
+  list.forEach(c => {
+    const old = memory.candidates[c.k]; if (!old) return;
+    const reason = String(c.arch || '').trim();
+    const changedArchive = c.st === 'Архив' && (old.st !== 'Архив' || (typeof old.arch === 'string' && old.arch !== reason));
+    if (changedArchive && reason === 'Скам') add('scam:' + c.k + ':' + day, 'scam', c);
+    if (changedArchive && reason === 'Пропал') add('lost:' + c.k + ':' + day, 'lost', c);
+    if (activeCandidate(c) && old.budget === false && budgetExhausted(c)) add('budget:' + c.k + ':' + ME.limit + ':' + day, 'budget', c);
+  });
+  const priority = {scam:0,budget:1,lost:2}; return signals.sort((a,b)=>priority[a.kind]-priority[b.kind]);
+}
+function showReaction(kind, c, additional = []) {
+  if (document.hidden) return;
+  PARTY_QUEUE = []; if (PARTY_CLOSE) PARTY_CLOSE();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const spent = Number(c.sp) || 0, limit = Number(ME.limit) || 0;
+  const variants = {
+    scam: {title:'Зафиксирован скам',emoji:'😡',text:c.n + '\n' + (c.t ? c.t + '\n' : '') + 'В архиве с причиной «Скам».' + (spent ? '\nУчтённые расходы: ' + money(spent) : '')},
+    lost: {title:'Кандидат пропал',emoji:'😔',text:c.n + '\n' + (c.t ? c.t + '\n' : '') + 'В архиве с причиной «Пропал». Последние договорённости сохранены в карточке.'},
+    budget: {title:spent > limit ? 'Бюджет превышен!' : 'Бюджет исчерпан!',emoji:'🚨',text:c.n + '\nУчтено ' + money(spent) + ' из ' + money(limit) + (spent > limit ? '\nСверх лимита: ' + money(spent - limit) : '\nОстаток бюджета: $0') + '\nТраты, ожидающие одобрения, в эту сумму не входят.'}
+  };
+  const v = variants[kind]; if (!v) return;
+  const decor = reduced ? '' : kind === 'lost' ? '<div class="signal-rain" aria-hidden="true">' + Array.from({length:12},(_,i)=>'<i style="left:'+(8+i*7)+'%;animation-delay:'+(i%4)*.12+'s"></i>').join('') + '</div>'
+    : kind === 'scam' ? '<span class="signal-spark left" aria-hidden="true">⚡</span><span class="signal-spark right" aria-hidden="true">💸</span>' : '<span class="alarm-ring" aria-hidden="true"></span>';
+  const el = document.createElement('div'); el.className = 'party reaction reaction-' + kind;
+  const details = additional.length ? '<div class="signal-list"><div class="sub">Другие важные изменения</div>' + additional.map(s => '<button class="b" type="button" data-signal-open="' + esc(s.c.k) + '">' + (s.kind === 'scam' ? '😡 Скам' : s.kind === 'lost' ? '😔 Пропал' : '🚨 Бюджет ' + money(s.c.sp) + ' / ' + money(limit)) + ' · ' + esc(s.c.n) + '</button>').join('') + '</div>' : '';
+  el.innerHTML = '<section class="party-card" aria-label="Важное изменение по кандидату"><div class="signal-art">' + decor + '<span class="signal-face" aria-hidden="true">' + v.emoji + '</span></div><div role="' + (kind === 'budget' ? 'alert' : 'status') + '" aria-live="' + (kind === 'budget' ? 'assertive' : 'polite') + '"><h2>' + esc(v.title) + '</h2><p>' + esc(v.text) + '</p></div>' + details + '<div class="acts"><button class="b main" type="button" data-signal-open="' + esc(c.k) + '">Открыть карточку</button><button class="b" type="button" data-signal-close>Понятно</button></div></section>';
+  document.body.appendChild(el); hap('warning');
+  const timer = setTimeout(close, 8000);
+  function close() { clearTimeout(timer); el.remove(); PARTY_CLOSE = null; }
+  PARTY_CLOSE = close; el.querySelector('[data-signal-close]').onclick = close;
+  el.querySelectorAll('[data-signal-open]').forEach(b => b.onclick = () => { const key = b.dataset.signalOpen; close(); stack = [{kind:'card',k:key}]; render(); });
+}
+
 document.addEventListener('visibilitychange', () => { if (document.hidden) { PARTY_QUEUE = []; if (PARTY_CLOSE) PARTY_CLOSE(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PARTY_CLOSE) PARTY_CLOSE(); });
 // Наблюдаем только смену верхнего содержимого, без слежения за тысячами строк.
