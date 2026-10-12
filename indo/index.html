@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>INDO CRM</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* «Ночной архипелаг»: глубокая морская ночь, коралл — главное действие, бирюза — «дошли до WhatsApp» */
+:root{
+  --sky:#0B1A1E;--panel:#12272C;--raise:#1A353B;--line:#24454C;--text:#E8F3F2;--muted:#86A3A6;
+  --acc:#FF8A5B;--acc-ink:#2B0E00;--ok:#3DD6A8;--bad:#FF6E6E;--blue:#7FC8FF;--wait:#F4C64F;
+  --disp:"Unbounded",system-ui,sans-serif;--body:"Onest",system-ui,-apple-system,sans-serif
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--sky);color:var(--text);font:15px/1.45 var(--body)}
+body{padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input,textarea{font:inherit;color:var(--text);background:var(--sky);border:1px solid var(--line);border-radius:12px;padding:11px 13px;width:100%}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{min-height:76px;resize:vertical}
+.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--sky) 82%,transparent);padding:14px 16px 10px}
+.h1{font:600 22px/1.15 var(--disp);letter-spacing:-.01em;margin:0}
+.toprow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ghost{color:var(--muted);font-size:14px;padding:4px 2px}
+.sub{color:var(--muted);font-size:13px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0;scrollbar-width:none;margin-top:10px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13.5px;white-space:nowrap;color:var(--muted)}
+.chip.on{border-color:var(--acc);color:var(--acc)}
+.chip b{font-weight:600;color:var(--text);margin-left:5px}
+.chip.on b{color:var(--acc)}
+.wrap{padding:4px 16px 18px}
+.board{background:var(--panel);border-radius:20px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:2px 12px;width:100%;text-align:left;padding:14px 16px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item:active{background:var(--raise)}
+.name{font:600 15.5px/1.25 var(--disp);letter-spacing:-.005em;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.cm{grid-column:1/-1;margin-top:5px;font-size:13.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pill{align-self:start;padding:4px 9px;border-radius:8px;font:600 11.5px/1.2 var(--disp);white-space:nowrap;background:var(--raise);color:var(--muted)}
+.pill.new{background:color-mix(in srgb,var(--acc) 18%,var(--panel));color:var(--acc)}
+.pill.wa{background:color-mix(in srgb,var(--ok) 18%,var(--panel));color:var(--ok)}
+.pill.rc,.pill.gv{background:color-mix(in srgb,var(--wait) 16%,var(--panel));color:var(--wait)}
+.pill.no{color:var(--bad)}
+.hero{padding:6px 2px 4px}
+.hero .name{font-size:24px;line-height:1.15}
+.hero .meta{margin-top:6px;font-size:14px}
+.hero .pill{display:inline-block;margin-top:12px;font-size:12.5px;padding:5px 10px}
+.sec{background:var(--panel);border-radius:18px;padding:15px 16px;margin:12px 0}
+.sec h2{font:600 14.5px/1.2 var(--disp);margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sec h2 small{font:500 12.5px var(--body);color:var(--muted)}
+.sec.quiet{background:transparent;border:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:14.5px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.b{flex:1 1 auto;min-width:30%;padding:12px 14px;border-radius:13px;background:var(--raise);font-weight:600;text-align:center}
+.b.main{background:var(--acc);color:var(--acc-ink)}
+.b.ok{background:var(--ok);color:#03261B}
+.b.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,var(--panel))}
+.b:disabled{opacity:.45}
+.col{display:grid;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.two .b,.three .b{min-width:0}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.three .b{padding:12px 6px;font-size:14px}
+.list{margin:0;padding:0;list-style:none}
+.list li{padding:10px 0;border-top:1px solid var(--line);font-size:14.5px;overflow-wrap:anywhere}
+.list li:first-child{border-top:0;padding-top:2px}
+.who{color:var(--muted);font-size:12.5px;margin-bottom:2px}
+.form{display:grid;gap:8px}
+.more{display:block;width:100%;padding:10px 0 0;color:var(--blue);font-weight:600;text-align:left}
+.empty{text-align:center;color:var(--muted);padding:56px 24px}
+.big{display:block;width:100%;padding:18px;border-radius:18px;background:var(--acc);color:var(--acc-ink);font:600 18px var(--disp);text-align:center}
+.wabig{display:block;width:100%;padding:16px;border-radius:16px;background:var(--ok);color:#03261B;font:600 17px var(--disp);text-align:center}
+.timer{font:600 13px var(--disp);color:var(--wait);margin-top:8px}
+.count{font:600 44px/1 var(--disp);color:var(--acc);margin:6px 0 4px}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;background:color-mix(in srgb,var(--sky) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);padding:3px 0}
+.nav button .e{font-size:20px;line-height:1;filter:grayscale(1) opacity(.65)}
+.nav button.on{color:var(--acc);font-weight:600}
+.nav button.on .e{filter:none}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--sky);font-weight:600;padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90%;text-align:center}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.hid{display:none!important}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty"><span class="spin"></span><br><br>Загружаю CRM…</div></div>
+<nav class="nav hid" id="nav"></nav>
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+const API = (() => {                                            // адрес сервера бот передаёт в ссылке: ?api=…
+  let u = new URLSearchParams(location.search).get('api') || '';
+  try { if (u) localStorage.setItem('api', u); else u = localStorage.getItem('api') || ''; } catch (e) {}
+  return u;
+})();
+const $ = s => document.querySelector(s), app = $('#app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const PILL = { 'Новая': 'new', 'Выдана': 'gv', 'В WhatsApp': 'wa', 'Перезвон': 'rc', 'Отказ': 'no', 'Не подходит': 'no' };
+const RES = [['w', '✅ В WhatsApp', 'ok'], ['r', '🔁 Перезвон', ''], ['o', '❌ Отказ', 'bad'], ['n', '🚫 Не подходит', 'bad']];
+let ME = null, LIST = [], S = { tab: 'call', f: 'all', q: '' }, stack = [], CALL = null, timer = null;
+
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
+async function api(op, a) {
+  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ init: tg ? tg.initData : '', op: op, a: a || {} }) });
+  const j = await r.json();
+  if (j.err) throw new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа: добавьте свой Telegram ID в лист «Доступ»' : j.err);
+  return j.d;
+}
+function confirmP(msg) { return new Promise(res => tg && tg.showConfirm ? tg.showConfirm(msg, res) : res(window.confirm(msg))); }
+function popup(title, msg, btns) { return new Promise(res => { if (tg && tg.showPopup) tg.showPopup({ title: title, message: msg, buttons: btns }, res); else res(null); }); }
+function openWA(k) { const u = 'https://wa.me/' + k; tg ? tg.openLink(u) : window.open(u); }
+function copy(t) { navigator.clipboard && navigator.clipboard.writeText(t).then(() => toast('Номер скопирован')).catch(() => toast(t)); }
+async function askRecall() {
+  const id = await popup('Перезвон', 'Когда перезвонить?', [{ id: '0', type: 'default', text: 'Через 3 часа' }, { id: '1', type: 'default', text: 'Через сутки' }, { id: '2', type: 'default', text: 'Через 2 дня' }]);
+  return id === '0' || id === '1' || id === '2' ? id : (tg && tg.showPopup ? null : '1');
+}
+// итог звонка: общий для экрана прозвона и карточки
+async function setResult(L, r, btn) {
+  let d = 0;
+  if (r === 'r') { d = await askRecall(); if (d === null) return null; }
+  if ((r === 'o' || r === 'n') && !(await confirmP((r === 'o' ? 'Отказ' : 'Не подходит') + ': ' + L.n + '?'))) return null;
+  const t0 = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try { const x = await api('res', { k: L.k, r: r, d: d }); hap(); LIST = []; return x; }
+  catch (e) { hap('error'); toast(e.message); btn.disabled = false; btn.innerHTML = t0; return null; }
+}
+
+// ---------- навигация ----------
+function nav() {
+  const tabs = [['call', '📞', 'Дай заявку'], ['list', '📋', 'Заявки']];
+  $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
+  $('#nav').classList.remove('hid');
+  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.tab = b.dataset.t; render(); });
+}
+function back() { stack.pop(); render(); }
+function render() {
+  clearInterval(timer); nav(); window.scrollTo(0, 0);
+  if (tg) stack.length ? tg.BackButton.show() : tg.BackButton.hide();
+  const top = stack[stack.length - 1];
+  if (top) return showCard(top.k);
+  return S.tab === 'call' ? showCall() : showList();
+}
+
+// ---------- 📞 Дай заявку ----------
+async function showCall(fresh) {
+  const head = '<div class="top"><div class="toprow"><h1 class="h1">Прозвон</h1><button class="ghost" id="rl">Обновить</button></div></div>';
+  if (!CALL || fresh) {
+    app.innerHTML = head + '<div class="empty"><span class="spin"></span></div>';
+    try { CALL = { start: true, left: (await api('list')).filter(x => x.st === 'Новая').length }; } catch (e) { app.innerHTML = head + '<div class="empty">' + esc(e.message) + '</div>'; bindTop(); return; }
+  }
+  const L = CALL.lead, D = CALL.done;
+  if (D) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec"><h2>' + esc(D.n) + '</h2><div class="sub" style="font-size:15px;color:var(--text)">' + esc(D.res) + '</div>'
+      + '<div class="acts" style="margin-top:12px"><button class="b" id="opn">Открыть карточку</button></div></div><button class="big" id="nxt">📞 Следующая заявка</button></div>';
+  } else if (!L) {
+    app.innerHTML = head + '<div class="wrap"><div class="sec" style="text-align:center;padding:26px 16px"><div class="sub">Новых заявок</div><div class="count">' + CALL.left + '</div>'
+      + '<div class="sub">плюс перезвоны, у которых подошло время. Сначала свежие и с паспортом.</div></div><button class="big" id="nxt">📞 Дай заявку</button></div>';
+  } else {
+    app.innerHTML = head + '<div class="wrap"><div class="hero">' + (L.recall ? '<div class="pill rc" style="margin:0 0 10px;display:inline-block">🔁 Перезвон</div>' : '')
+      + '<div class="name">' + esc(L.n || 'Без имени') + '</div><div class="meta">📍 ' + esc(L.c || '—') + ' · паспорт: ' + esc(L.pass || '—') + '</div><div class="timer" id="tmr"></div></div>'
+      + '<button class="wabig" id="wa">💬 Написать в WhatsApp</button>'
+      + '<div class="sec"><dl class="kv"><dt>Телефон</dt><dd><button id="cp" style="color:var(--blue);padding:0">' + esc(L.ph) + '</button></dd>' + (L.em ? '<dt>Почта</dt><dd>' + esc(L.em) + '</dd>' : '')
+      + '<dt>Заявка</dt><dd>' + esc(L.t) + (L.apps > 1 ? ' · заявок с номера: ' + L.apps : '') + '</dd><dt>Звонков</dt><dd>' + L.tries + '</dd>' + (L.cm ? '<dt>Коммент.</dt><dd>' + esc(L.cm) + '</dd>' : '') + '</dl></div>'
+      + '<div class="sec"><h2>Итог</h2><div class="col"><div class="two">' + RES.map(x => '<button class="b ' + x[2] + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+      + '<button class="more" data-r="s" style="text-align:center">↩️ Вернуть в очередь</button></div></div>'
+      + '<div class="sec"><h2>Комментарий</h2><div class="form"><textarea id="cmt" placeholder="Что сказал, о чём договорились"></textarea><button class="b" id="cms">Сохранить комментарий</button></div></div>'
+      + '<div class="sub" style="text-align:center">в очереди ещё ' + CALL.left + '</div></div>';
+    const tick = () => { const el = $('#tmr'); if (!el) return clearInterval(timer); const ms = L.until - Date.now();
+      if (ms <= 0) { el.textContent = 'Время вышло: заявка вернулась в очередь'; el.style.color = 'var(--bad)'; return clearInterval(timer); }
+      el.textContent = 'Заявка ваша ещё ' + Math.floor(ms / 60e3) + ' мин ' + String(Math.floor(ms / 1e3) % 60).padStart(2, '0') + ' с'; };
+    if (L.until) { tick(); timer = setInterval(tick, 1000); }
+  }
+  bindTop();
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('nxt', async b => { b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { const q = await api('next'); CALL = { lead: q.lead, left: q.left }; if (!q.lead) toast('Очередь пуста 🎉'); else hap(); showCall(); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '📞 Дай заявку'; } });
+  on('opn', () => { stack.push({ k: D.k }); render(); });
+  on('wa', () => openWA(L.k));
+  on('cp', () => copy(L.ph));
+  on('cms', async b => { const t = $('#cmt').value.trim(); if (t.length < 2) return toast('Напишите пару слов');
+    b.disabled = true; try { await api('comment', { k: L.k, text: t }); hap(); toast('Комментарий сохранён'); L.cm = t; $('#cmt').value = ''; } catch (e) { toast(e.message); } b.disabled = false; });
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => {
+    const x = await setResult(L, b.dataset.r, b); if (!x) return;
+    if (b.dataset.r === 's') { toast('Вернул в очередь'); CALL = { left: CALL.left + 1 }; return showCall(); }
+    CALL = { done: { k: L.k, n: L.n, res: x.res }, left: CALL.left }; showCall();
+  });
+}
+function bindTop() { const r = $('#rl'); if (r) r.onclick = () => { if (S.tab === 'call' && CALL && CALL.lead) return showCall(); S.tab === 'call' ? showCall(true) : showList(true); }; }
+
+// ---------- 📋 все заявки ----------
+const FILTERS = [['all', 'Все'], ['Новая', 'Новые'], ['Перезвон', 'Перезвон'], ['В WhatsApp', 'В WhatsApp'], ['Выдана', 'Выданы'], ['x', 'Отказ / не подходит']];
+function matches(c, f) {
+  f = f || S.f;
+  if (f === 'x' ? !(c.st === 'Отказ' || c.st === 'Не подходит') : f !== 'all' && c.st !== f) return false;
+  if (S.q) { const q = S.q.toLowerCase(), d = q.replace(/\D/g, '');
+    if (!((c.n || '').toLowerCase().includes(q) || (c.c || '').toLowerCase().includes(q) || (c.em || '').toLowerCase().includes(q) || (d.length >= 3 && c.k.includes(d)))) return false; }
+  return true;
+}
+async function showList(reload) {
+  if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { LIST = await api('list'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Заявки</h1><button class="ghost" id="rl">Обновить</button></div>'
+    + '<input id="q" type="search" placeholder="Имя, город, почта или номер" value="' + esc(S.q) + '"><div class="chips" id="fl"></div></div>'
+    + '<div class="wrap"><div class="board" id="items"></div></div>';
+  const draw = () => {
+    $('#fl').innerHTML = FILTERS.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + esc(x[0]) + '">' + x[1] + '<b>' + LIST.filter(c => matches(c, x[0])).length + '</b></button>').join('');
+    const items = LIST.filter(c => matches(c)).slice(0, 300);
+    $('#items').innerHTML = items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет, смените фильтр</div>';
+    $('#fl').querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; draw(); });
+    app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { stack.push({ k: b.dataset.k }); render(); });
+  };
+  const q = $('#q'); q.oninput = () => { S.q = q.value.trim(); draw(); };
+  draw(); bindTop();
+}
+function itemHtml(c) {
+  const bits = [c.c, 'паспорт: ' + (c.pass || '—'), c.t];
+  if (c.st === 'Перезвон' && c.rc) bits.push('перезвон ' + c.rc);
+  if (c.st === 'Выдана' && c.who) bits.push('у ' + c.who);
+  return '<button class="item" data-k="' + esc(c.k) + '"><div class="name">' + esc(c.n || 'Без имени') + '</div><span class="pill ' + (PILL[c.st] || '') + '">' + esc(c.st) + '</span>'
+    + '<div class="meta">' + bits.filter(Boolean).map(esc).join(' · ') + '</div>'
+    + (c.cm ? '<div class="cm">💬 ' + esc(c.cm) + '</div>' : '') + '</button>';
+}
+
+// ---------- карточка ----------
+async function showCard(k) {
+  app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+  let c; try { c = await api('card', { k: k }); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  const stLine = c.st + (c.st === 'Перезвон' && c.rc ? ' · ' + c.rc : '') + (c.st === 'Выдана' && c.who ? ' · у ' + c.who : '');
+  app.innerHTML = '<div class="wrap"><div class="hero"><div class="name">' + esc(c.n || 'Без имени') + '</div><div class="meta">📍 ' + esc(c.c || '—') + ' · паспорт: ' + esc(c.pass || '—') + '</div>'
+    + '<span class="pill ' + (PILL[c.st] || '') + '">' + esc(stLine) + '</span></div>'
+    + '<button class="wabig" id="wa" style="margin-top:12px">💬 Написать в WhatsApp</button>'
+    + '<div class="sec"><h2>Итог звонка <small>звонков ' + c.tries + (c.who && c.upd ? ' · ' + esc(c.who) + ', ' + esc(c.upd) : '') + '</small></h2><div class="col"><div class="two">'
+    + RES.map(x => '<button class="b ' + x[2] + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + (c.st !== 'Новая' ? '<button class="more" data-r="s" style="text-align:center">↩️ Вернуть в очередь как новую</button>' : '') + '</div></div>'
+    + '<div class="sec"><h2>Комментарии <small>' + c.cms.length + '</small></h2><div class="form" style="margin-bottom:8px"><textarea id="cmt" placeholder="Что сказал, о чём договорились"></textarea><button class="b main" id="cms">Сохранить</button></div>'
+    + (c.cms.length ? '<ul class="list">' + c.cms.map(x => { const m = x.match(/^(\d\d\.\d\d \d\d:\d\d) ([^:]+): ([\s\S]*)$/);
+        return '<li>' + (m ? '<div class="who">' + esc(m[2]) + ', ' + esc(m[1]) + '</div>' + esc(m[3]) : esc(x)) + '</li>'; }).join('') + '</ul>' : '<div class="sub">Комментариев ещё нет</div>') + '</div>'
+    + '<div class="sec quiet"><h2>Данные</h2><dl class="kv"><dt>Телефон</dt><dd><button id="cp" style="color:var(--blue);padding:0">' + esc(c.ph) + '</button></dd>'
+    + (c.em ? '<dt>Почта</dt><dd>' + esc(c.em) + '</dd>' : '') + '<dt>WhatsApp</dt><dd>+' + esc(c.k) + '</dd><dt>Заявка</dt><dd>' + esc(c.t) + '</dd></dl></div>'
+    + (c.rows.length > 1 ? '<div class="sec quiet"><h2>Все заявки с номера <small>' + c.rows.length + '</small></h2><ul class="list">'
+      + c.rows.map(r => '<li><div class="who">' + esc(r.t) + ', строка ' + r.row + '</div>' + esc(r.n) + ' · ' + esc(r.c) + ' · паспорт: ' + esc(r.pass || '—') + '</li>').join('') + '</ul></div>' : '')
+    + '</div>';
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('wa', () => openWA(c.k));
+  on('cp', () => copy(c.ph));
+  on('cms', async b => { const t = $('#cmt').value.trim(); if (t.length < 2) return toast('Напишите пару слов');
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    try { await api('comment', { k: c.k, text: t }); hap(); toast('Сохранено'); LIST = []; showCard(k); } catch (e) { toast(e.message); b.disabled = false; b.innerHTML = 'Сохранить'; } });
+  app.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => { const x = await setResult(c, b.dataset.r, b); if (x) { toast(x.res); showCard(k); } });
+}
+
+// ---------- старт ----------
+(async function () {
+  if (!tg || !tg.initData) { app.innerHTML = '<div class="empty">Откройте CRM из Telegram-бота: кнопка «CRM» слева от поля ввода.</div>'; return; }
+  if (!API) { app.innerHTML = '<div class="empty">Не знаю адрес сервера. Откройте CRM кнопкой из бота.</div>'; return; }
+  tg.ready(); tg.expand();
+  try { tg.setHeaderColor('#0B1A1E'); tg.setBackgroundColor('#0B1A1E'); if (tg.setBottomBarColor) tg.setBottomBarColor('#0B1A1E'); } catch (e) {}
+  tg.BackButton.onClick(back);
+  try { ME = await api('me'); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  render();
+})();
+</script>
+</body>
+</html>
