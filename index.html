@@ -25,13 +25,26 @@ input[type=datetime-local]{color-scheme:dark;-webkit-appearance:none;appearance:
 input[type=datetime-local]::-webkit-date-and-time-value{text-align:left}
 textarea{min-height:84px;resize:vertical}
 a{color:var(--blue)}
-.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--sky) 82%,transparent);padding:14px 16px 10px}
+.top{position:sticky;top:0;z-index:5;background:var(--sky);padding:14px 16px 10px}
 .h1{font:600 22px/1.15 var(--disp);letter-spacing:-.01em;margin:0}
 .toprow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
 .ghost{color:var(--muted);font-size:14px;padding:4px 2px}
 .sub{color:var(--muted);font-size:13px}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 2px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
+.list-top{position:relative;z-index:auto}
+.filter-box{margin-top:10px}
+.filter-box summary{display:flex;align-items:center;gap:9px;min-height:38px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted)}
+.filter-box summary::-webkit-details-marker{display:none}
+.filter-label{flex:none;color:var(--text);font-weight:600}
+.filter-count{display:inline-grid;place-items:center;background:var(--amber);color:var(--sky);border-radius:99px;min-width:19px;height:19px;margin-left:4px;font-size:11px}
+.filter-summary{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filter-chevron{flex:none;transition:transform 160ms ease}
+.filter-box[open] .filter-chevron{transform:rotate(180deg)}
+.filter-panel{padding:8px 0 2px;border-top:1px solid var(--line)}
+.filter-panel .chips{flex-wrap:wrap;overflow:visible}
+.filter-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px;font-size:12px;color:var(--muted)}
+@media(prefers-reduced-motion:reduce){.filter-chevron{transition:none}}
 .chips+.chips{margin-top:6px}
 .chip{flex:none;padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13.5px;white-space:nowrap;color:var(--muted)}
 .chip.on{border-color:var(--amber);color:var(--amber)}
@@ -221,7 +234,7 @@ function loadList(force) {                                  // один запр
   if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
   return LISTP;
 }
-let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', show: 'act' }, stack = [], boardTimer = null;
+let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', show: 'act', filtersOpen: false }, stack = [], boardTimer = null;
 
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
@@ -314,19 +327,26 @@ async function showList(reload) {
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['x', 'Без команды']]);
-  const base = LIST.filter(c => { const o = S.f; S.f = 'a'; const r = matches(c); S.f = o; return r; });
-  const cnt = k => { const o = S.f; S.f = k; const n = base.filter(matches).length; S.f = o; return n; };
+  const cnt = k => { const o = S.f; S.f = k; const n = LIST.filter(matches).length; S.f = o; return n; };
   const cmCount = k => { const o = S.cm; S.cm = k; const n = LIST.filter(matches).length; S.cm = o; return n; };
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
-  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
+  const stages = [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']];
+  const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев']];
+  const activeFilters = Number(S.f !== 'a') + Number(S.show !== 'act') + Number(!!S.cm);
+  const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
+  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
-    + '<div class="chips" style="margin-top:10px">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
-    + '<div class="chips">' + [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']].map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
-    + '<div class="chips">' + [['yes', 'С комментариями'], ['no', 'Без комментариев']].map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div></div>'
+    + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
+    + '<div class="chips">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
+    + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
+    + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
     + '<div class="wrap"><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+  $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
+  $('#filter-reset').onclick = () => { S.f = 'a'; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
-  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); bindItems(); bindQuickComments(); farBtn(); };
+  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f)); $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length; bindItems(); bindQuickComments(); farBtn(); };
   farBtn(); waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
