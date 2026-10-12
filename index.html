@@ -599,12 +599,12 @@ async function showCard(k, keep) {                          // keep — обно
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
   app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
-  bindCard(c);
+  bindCard(c); observeBudgetCard(c);
 }
 function bindCard(c) {
   const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
-    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); return d; } catch (e) { hap('error'); toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
+    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
@@ -753,7 +753,7 @@ function observeGoals(list) {
   Object.keys(memory.seen).forEach(k => { if (now - memory.seen[k] > 8 * 864e5) delete memory.seen[k]; });
   const signals = collectSignals(list, memory, now, day);
   const events = [], candidateState = {};
-  const award = (id, title, text) => { if (signals.length || memory.seen[id]) return; memory.seen[id] = now; events.push({ title, text }); };
+  const award = (id, title, text) => { if (signals.length || now - SIGNAL_AT < 8000 || memory.seen[id]) return; memory.seen[id] = now; events.push({ title, text }); };
   list.forEach(c => {
     const old = memory.candidates[c.k], ready = docsComplete(c);
     candidateState[c.k] = { docs: ready, st: c.st, budget: budgetExhausted(c), arch: String(c.arch || '') };
@@ -804,7 +804,25 @@ function celebrate(title, text) {
     raf = requestAnimationFrame(frame);
   }; raf = requestAnimationFrame(frame);
 }
+let SIGNAL_AT = 0;
 const budgetExhausted = c => Number(ME && ME.limit) > 0 && Number(c.sp) >= Number(ME.limit);
+function signalMemory() { const m = lsGet('goal-memory') || {}; m.candidates = m.candidates || {}; m.seen = m.seen || {}; return m; }
+function archiveReaction(c, reason) {
+  if (reason !== 'Скам' && reason !== 'Пропал') return;
+  const now = Date.now(), day = new Date(now + MSK).toISOString().slice(0, 10), kind = reason === 'Скам' ? 'scam' : 'lost';
+  const memory = signalMemory(), id = kind + ':' + c.k + ':' + day;
+  if (memory.seen[id]) return;
+  memory.seen[id] = now; memory.candidates[c.k] = Object.assign({docs:docsComplete(c)}, memory.candidates[c.k], {st:'Архив',arch:reason}); lsSet('goal-memory',memory);
+  SIGNAL_AT = now; showReaction(kind, Object.assign({},c,{sp:Number(c.ok)||0,arch:reason}));
+}
+function observeBudgetCard(c) {
+  const memory = signalMemory(), old = memory.candidates[c.k], spent = Object.assign({},c,{sp:Number(c.ok)||0}), exhausted = budgetExhausted(spent);
+  if (old && old.budget === false && activeCandidate(c) && exhausted) {
+    const now = Date.now(), day = new Date(now + MSK).toISOString().slice(0,10), id = 'budget:' + c.k + ':' + ME.limit + ':' + day;
+    if (!memory.seen[id]) { memory.seen[id]=now; SIGNAL_AT=now; showReaction('budget',spent); }
+  }
+  memory.candidates[c.k] = Object.assign({docs:docsComplete(c),st:c.st,arch:String(c.arch||'')},old,{budget:exhausted}); lsSet('goal-memory',memory);
+}
 function budgetBanner(c, amount) {
   const spent = amount === undefined ? Number(c.sp) || 0 : Number(amount) || 0;
   if (!(Number(ME && ME.limit) > 0) || spent < Number(ME.limit)) return '';
@@ -825,6 +843,7 @@ function collectSignals(list, memory, now, day) {
 }
 function showReaction(kind, c, additional = []) {
   if (document.hidden) return;
+  SIGNAL_AT = Date.now();
   PARTY_QUEUE = []; if (PARTY_CLOSE) PARTY_CLOSE();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const spent = Number(c.sp) || 0, limit = Number(ME.limit) || 0;
