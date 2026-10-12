@@ -376,6 +376,7 @@ async function showCall(fresh) {
     app.innerHTML = head + '<div class="wrap"><div class="hero lead"><div class="name">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div>'
       + '<div class="meta">' + esc(L.c || '—') + ' · паспорт: ' + esc(L.pass || '—') + '</div><div class="timer" id="tmr"></div></div>'
       + '<div class="sec"><div class="acts"><button class="b" id="cp">' + esc(L.ph || 'нет номера') + '</button>' + (dg ? '<button class="b main" id="wa">WhatsApp</button>' : '') + '</div>'
+      + (dg && L.na ? '<button class="b" id="wna" style="width:100%;margin-top:10px">💬 Не дозвонились — написать в WhatsApp</button><div class="sub" style="margin-top:6px">Откроется WhatsApp с готовым текстом на языке страны — останется нажать «Отправить»</div>' : '')
       + '<dl class="kv" style="margin-top:14px"><dt>Заявка</dt><dd>' + fmt(L.created) + '</dd><dt>Звонков</dt><dd>' + L.tries + (L.res ? ', последний: ' + esc(L.res) : '') + '</dd><dt>Строка</dt><dd>' + L.row + '</dd></dl></div>'
       + '<div class="sec"><h2>Результат звонка</h2><div class="col"><button class="b arr" data-r="w">✅ Перешёл в WhatsApp</button><div class="three"><button class="b" data-r="r">🔁 Перезвонить</button><button class="b bad" data-r="o">❌ Отказ</button><button class="b bad" data-r="n">🚫 Не подходит</button></div>'
       + '<button class="more" data-r="s" style="text-align:center">↩️ Вернуть в очередь</button></div></div><div class="sub" style="text-align:center">в очереди ещё ' + CALL.left + '</div></div>';
@@ -390,6 +391,7 @@ async function showCall(fresh) {
     try { const q = await api('next'); CALL = { lead: q.lead, left: q.left, done: null }; if (!q.lead) toast('Очередь пуста'); hap(); showCall(); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = '📞 Дай заявку'; } });
   on('opn', () => { stack.push({ kind: 'card', k: D.k }); render(); });
+  on('wna', () => { const u = 'https://wa.me/' + L.ph.replace(/\D/g, '') + '?text=' + encodeURIComponent(L.na); tg ? tg.openLink(u) : window.open(u); api('wamsg', { k: L.k }).catch(() => {}); toast('Отправьте сообщение в WhatsApp, потом отметьте результат звонка'); });
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(L.ph).then(() => toast('Номер скопирован')).catch(() => toast(L.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + L.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
   app.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => {
