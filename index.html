@@ -392,7 +392,7 @@ async function showCard(k) {
   // документы
   let docsH = '<div class="sec"><h2>Документы <small>' + c.docs.length + ' из ' + ME.docs.length + '</small></h2><div class="docs">'
     + ME.docs.map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + '</div>'
-    + (c.can ? '<div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid"></div>' : '')
+    + (c.can ? '<div class="sub" style="margin-top:10px">Нажмите на документ — откроется камера или галерея, фото сохранится и документ отметится. <button class="more" id="mk" style="display:inline;width:auto;padding:0">Отметить без файла</button></div><div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid" accept="image/*,video/*,application/pdf"></div>' : '')
     + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</li>').join('') + '</ul>'
       + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
   // вылет
@@ -432,7 +432,15 @@ function bindCard(c) {
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
   app.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); tg ? tg.openLink(a.href) : window.open(a.href); });
-  app.querySelectorAll('[data-d]').forEach(b => b.onclick = () => run(b, 'docs', { d: b.dataset.d }, 'Готово'));
+  let markMode = false;
+  on('mk', b => { markMode = !markMode; b.textContent = markMode ? 'Готово, вернуть загрузку' : 'Отметить без файла'; toast(markMode ? 'Нажимайте на документы, чтобы отметить или снять' : 'Нажатие на документ снова открывает загрузку'); });
+  app.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
+    const on1 = b.classList.contains('on'), d = ME.docs.find(x => x[0] === b.dataset.d), ft = d ? d[1].replace(' / бронь', '') : '';
+    if (markMode || !$('#file')) return run(b, 'docs', { d: b.dataset.d }, 'Готово');
+    if (on1) { if (await confirmP('Снять отметку «' + ft + '»? Загруженные файлы останутся.')) run(b, 'docs', { d: b.dataset.d }, 'Снято'); return; }
+    const sel = $('#ft'); if (sel && ME.ftypes.indexOf(ft) >= 0) sel.value = ft;
+    $('#file').click();
+  });
   on('up', () => $('#file').click());
   const fi = $('#file'); if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f) return;
     if (f.size > 20e6) return toast('Файл больше 20 МБ — пришлите его через бот');
