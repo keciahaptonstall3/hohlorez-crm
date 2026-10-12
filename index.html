@@ -160,7 +160,23 @@ async function api(op, a, again) {
   return j.d;
 }
 function confirmP(msg) { return new Promise(res => tg && tg.showConfirm ? tg.showConfirm(msg, res) : res(window.confirm(msg))); }
-function popup(title, msg, btns) { return new Promise(res => { if (tg && tg.showPopup) tg.showPopup({ title: title, message: msg, buttons: btns }, res); else res(null); }); }
+function popup(title, msg, btns) {                           // Telegram показывает не больше 3 кнопок — иначе свой список снизу
+  if (btns.length > 3 || !(tg && tg.showPopup)) return sheet(title, msg, btns);
+  return new Promise(res => { try { tg.showPopup({ title: title, message: msg, buttons: btns }, res); } catch (e) { sheet(title, msg, btns).then(res); } });
+}
+function sheet(title, msg, btns) {
+  return new Promise(res => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.55);display:flex;align-items:flex-end';
+    ov.innerHTML = '<div style="width:100%;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))">'
+      + '<div style="font-weight:700;font-size:17px;margin-bottom:4px">' + esc(title) + '</div><div class="sub" style="margin-bottom:14px">' + esc(msg) + '</div><div class="col">'
+      + btns.map((b, i) => '<button class="b' + (b.type === 'destructive' ? ' bad' : b.type === 'cancel' ? '' : '') + '" data-i="' + i + '">' + esc(b.type === 'cancel' ? 'Отмена' : b.text) + '</button>').join('') + '</div></div>';
+    const done = v => { ov.remove(); res(v); };
+    ov.onclick = e => { if (e.target === ov) done(null); };
+    ov.querySelectorAll('[data-i]').forEach(x => x.onclick = () => { const b = btns[+x.dataset.i]; done(b.type === 'cancel' ? null : b.id); });
+    document.body.appendChild(ov);
+  });
+}
 function b64(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); }); }
 async function shrink(file) {                                  // фото — сжать до ~1600px, чтобы быстро грузилось
   if (!/^image\//.test(file.type) || file.size < 600e3) return { b: await b64(file), mime: file.type };
