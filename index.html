@@ -210,6 +210,45 @@ input,textarea,select{transition:border-color 160ms ease}
 @keyframes alarm-wave{from{opacity:.65;transform:scale(.8)}to{opacity:0;transform:scale(1.5)}}
 @media(prefers-reduced-motion:reduce){.signal-face,.signal-spark,.signal-rain i,.alarm-ring{animation:none!important}.signal-rain,.signal-spark,.alarm-ring{display:none}}
 
+.dash-top{position:relative;background:var(--sky)}
+.dash-kicker{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+.dash-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dash-meta{color:var(--muted);font-size:12px;line-height:1.5;margin-top:6px}
+.dash-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.dash-controls select{font-size:13px;padding:10px;min-width:0}
+.dash-month{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
+.dash-month span{flex:1;text-align:center}
+.dash{display:grid;gap:14px;padding:0 16px 24px}
+.dash-card{padding:18px;border:1px solid var(--line);border-radius:20px;background:var(--panel);min-width:0}
+.dash-card h2{font:600 17px/1.3 var(--disp);margin:0 0 6px}
+.dash-caption{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 16px}
+.dash-hero{background:radial-gradient(ellipse at top right,color-mix(in srgb,var(--arr) 16%,var(--panel)),var(--panel) 70%);border-color:color-mix(in srgb,var(--arr) 45%,var(--line))}
+.dash-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dash-kpi{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+.dash-kpi .value{font:600 clamp(22px,6vw,32px)/1.2 var(--disp);overflow-wrap:anywhere}
+.dash-kpi .label{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+.dash-kpi .hint{font-size:11px;color:var(--muted);margin-top:5px}
+.dash-kpi.good .value{color:var(--arr)}.dash-kpi.bad .value{color:var(--bad)}.dash-kpi.gold .value{color:var(--amber)}
+.dash-bars{display:grid;gap:13px}.dash-bar-head{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-bottom:6px}.dash-bar-head span{min-width:0;overflow-wrap:anywhere}.dash-bar-head b{white-space:nowrap}
+.dash-track{height:9px;border-radius:99px;background:var(--line);overflow:hidden}.dash-track i{display:block;height:100%;border-radius:99px;background:var(--amber)}
+.dash-team{padding:15px 0;border-top:1px solid var(--line)}.dash-team:first-of-type{border-top:0}
+.dash-team-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:600;font-size:14px;margin-bottom:8px}
+.dash-team-head button{color:var(--amber);font-size:12px}
+.dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.dash-stats b{display:block;font-size:18px;color:var(--text)}.dash-stats span{font-size:11px;color:var(--muted);line-height:1.5}
+.dash-stack{height:14px;display:flex;overflow:hidden;border-radius:99px;background:var(--line)}.dash-stack i{height:100%}
+.dash-legend{display:flex;flex-wrap:wrap;gap:8px 13px;font-size:11px;color:var(--muted);margin-top:10px}.dash-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.dash-steps{display:grid;gap:10px}.dash-step{display:grid;grid-template-columns:27px 1fr auto;gap:9px;align-items:center}.dash-step .n{color:var(--muted);font-size:12px}.dash-step .dash-track{height:30px;margin-top:5px}.dash-step .title{font-size:13px}.dash-step b{font:600 25px var(--disp)}
+.dash-person{padding:13px 0;border-top:1px solid var(--line)}.dash-person-name{display:flex;gap:10px;justify-content:space-between;font-size:14px;margin-bottom:5px}.dash-person small{display:block;color:var(--muted);font-size:11px;margin:4px 0 9px;line-height:1.5}
+.dash-person .badge{font-size:11px;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 35%,var(--line));border-radius:99px;padding:3px 7px;white-space:nowrap}
+.dash-donut-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.dash-donut{width:148px;height:148px;flex:none;border-radius:50%;position:relative;display:grid;place-items:center}.dash-donut::before{content:'';position:absolute;inset:19px;border-radius:50%;background:var(--panel)}.dash-donut strong{position:relative;text-align:center;font:600 30px var(--disp)}.dash-donut small{display:block;font:11px var(--body);color:var(--muted);margin-top:3px}.dash-donut-legend{flex:1;min-width:110px;display:grid;gap:10px;font-size:12px}.dash-donut-legend div{display:flex;justify-content:space-between;gap:10px}.dash-donut-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dash-line svg{width:100%;height:120px;display:block}.dash-line-labels{display:flex;justify-content:space-between;color:var(--muted);font-size:10px;margin-top:6px}
+.dash-goal{margin-top:15px}.dash-goal header{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:7px}.dash-goal small{display:block;font-size:11px;color:var(--muted);margin-top:5px}
+.dash-loss{display:flex;width:100%;text-align:left;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--line);font-size:13px}.dash-loss small{display:block;color:var(--muted);font-size:11px;margin-top:4px}.dash-loss b{color:var(--bad);white-space:nowrap}
+.dash-empty{font-size:13px;line-height:1.6;color:var(--muted);padding:8px 0}.dash-method{font-size:11px;line-height:1.6;color:var(--muted)}.dash-method summary{font-size:12px;cursor:pointer;color:var(--text);margin-bottom:10px}
+.dash-error{border:1px solid var(--bad);color:var(--bad);padding:12px;border-radius:12px;font-size:13px;margin-bottom:12px}
+.dash-podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;margin:22px 0 8px}.dash-podium div{background:var(--raise);padding:12px 6px;border-radius:15px;text-align:center;font-size:12px;min-width:0}.dash-podium .first{padding-top:25px;border:1px solid var(--amber);background:color-mix(in srgb,var(--amber) 10%,var(--panel))}.dash-podium .medal{font-size:23px;display:block;margin-bottom:9px}.dash-podium b{display:block;font-size:23px;color:var(--amber);margin-top:9px}.dash-podium small{color:var(--muted);font-size:10px}.dash-podium .name{overflow-wrap:anywhere;font:600 12px/1.4 var(--body)}
+@media(min-width:720px){.dash{max-width:960px;margin:auto;grid-template-columns:1fr 1fr}.dash-wide{grid-column:1/-1}.dash-top{max-width:960px;margin:auto}.dash-kpis{grid-template-columns:repeat(4,1fr)}}
+
 </style>
 </head>
 <body>
@@ -279,7 +318,7 @@ function nav() {
   if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
-  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.tab = b.dataset.t; render(); });
+  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.legacyRep = false; S.tab = b.dataset.t; render(); });
 }
 function back() { stack.pop(); render(); }
 function render() {
@@ -291,8 +330,8 @@ function render() {
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
   if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
-  if (S.tab === 'board') return showView('b', 'Табло', 60e3);
-  if (S.tab === 'funnel') return showView('f', 'Воронка');
+  if (S.tab === 'board') return showBoard();
+  if (S.tab === 'funnel') return ME.boss ? showAnalytics('funnel') : showView('f', 'Воронка');
   if (S.tab === 'rep') return showRep();
 }
 
@@ -677,16 +716,18 @@ async function showView(v, title, every, off) {
   await load(true);
   if (every) boardTimer = setInterval(() => { if (!document.hidden) load(false); }, every);
 }
-async function showRep(inPlace) {
+function showRep(inPlace) { return ME.boss && !S.legacyRep ? showAnalytics('rep') : showLegacyRep(inPlace); }
+async function showLegacyRep(inPlace) {
   const R = [['s', 'Сводка'], ['am', 'Утро'], ['m', 'Траты'], ['l', 'Потери'], ['k', 'Страны'], ['j', 'Журнал']];
   S.rv = S.rv || 's'; S.off = S.off || 0;
   const monthly = 'mlk'.indexOf(S.rv) >= 0, paged = S.rv === 'j', ck = 'r_' + S.rv + '_' + S.off, old = lsGet(ck), y = inPlace ? window.scrollY : 0, vh = inPlace && $('#vw') ? $('#vw').offsetHeight : 0;
-  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Отчёт</h1><button class="ghost" id="rl">Обновить</button></div><div class="chips">'
+  app.innerHTML = '<div class="top"><div class="toprow"><h1 class="h1">Отчёт</h1>' + (ME.boss ? '<button class="ghost" id="dash-back">← К панели</button>' : '') + '<button class="ghost" id="rl">Обновить</button></div><div class="chips">'
     + R.map(x => '<button class="chip' + (S.rv === x[0] ? ' on' : '') + '" data-r="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + (monthly || paged ? '<div class="mnav"><button class="chip" id="pv">← ' + (paged ? 'Раньше' : 'Прошлый месяц') + '</button><button class="chip" id="nx"' + (S.off ? '' : ' disabled') + '>' + (paged ? 'Позже' : 'Следующий') + '</button></div>' : '')
     + '</div><div class="wrap">' + (S.rv === 'm' && !S.off && ME.infra ? '<div class="sec"><h2>🏗 Трата на инфраструктуру</h2><div class="form" style="margin:0"><div class="two"><input id="is" inputmode="decimal" placeholder="Сумма, $"><select id="ic">'
       + ME.infra.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div><input id="icm" placeholder="Комментарий (необязательно)"><div class="two"><button class="b" id="iph">📷 Чек</button><button class="b main" id="ib">Добавить</button></div>'
       + '<input type="file" id="ifile" class="hid" accept="image/*"></div></div>' : '') + '<div class="tg" id="vw"' + (vh ? ' style="min-height:' + vh + 'px"' : '') + '>' + (old || '<span class="spin"></span>') + '</div></div>';
+  if ($('#dash-back')) $('#dash-back').onclick = () => { S.legacyRep = false; showAnalytics('rep'); };
   if (inPlace) window.scrollTo(0, y);
   app.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { S.rv = b.dataset.r; S.off = 0; showRep(true); });
   const pv = $('#pv'), nx = $('#nx'); if (pv) pv.onclick = () => { S.off++; showRep(true); }; if (nx) nx.onclick = () => { S.off = Math.max(0, S.off - 1); showRep(true); };
@@ -702,6 +743,85 @@ async function showRep(inPlace) {
   const want = ck;
   try { const t = await api('view', { v: S.rv, off: S.off }); lsSet(ck, t); const el = $('#vw'); if (el && want === 'r_' + S.rv + '_' + S.off) { el.innerHTML = t; el.style.minHeight = ''; } } catch (e) { const el = $('#vw'); if (el && !old) el.textContent = e.message; }
 }
+
+// Инфографика без зависимостей: CSS и компактные SVG, только реальные серверные данные.
+let DASH_DATA = null, DASH_REQUEST = 0, BOARD_DATA = null;
+const DASH_COLORS = ['var(--amber)','var(--arr)','var(--blue)','var(--bad)','var(--muted)'];
+const dashNum = n => Number(n || 0).toLocaleString('ru-RU');
+const dashPct = (a,b) => b ? Math.round(a/b*100) + '%' : '—';
+const dashKpi = (label,value,tone,hint) => '<div class="dash-kpi ' + (tone || '') + '"><div class="value">' + esc(value) + '</div><div class="label">' + esc(label) + '</div>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
+const dashCard = (title,caption,body,cls) => '<section class="dash-card ' + (cls||'') + '"><h2>' + esc(title) + '</h2>' + (caption ? '<p class="dash-caption">' + esc(caption) + '</p>' : '') + body + '</section>';
+const dashBar = (name,value,max,color,formatted) => '<div><div class="dash-bar-head"><span>' + esc(name) + '</span><b>' + esc(formatted || dashNum(value)) + '</b></div><div class="dash-track"><i style="width:' + (max ? Math.min(100,value/max*100) : 0) + '%;background:' + color + '"></i></div></div>';
+function dashDonut(parts,label) {
+  const total = parts.reduce((a,p)=>a+p.value,0);let pos=0;
+  const stops=parts.map((p,i)=>{const start=pos;pos+=total?p.value/total*100:0;return DASH_COLORS[i%DASH_COLORS.length]+' '+start+'% '+pos+'%';});
+  return '<div class="dash-donut-row"><div class="dash-donut" role="img" aria-label="' + esc(parts.map(p=>p.name+': '+p.value).join(', ')) + '" style="background:' + (total?'conic-gradient('+stops.join(',')+')':'var(--line)') + '"><strong>' + dashNum(total) + '<small>' + esc(label) + '</small></strong></div><div class="dash-donut-legend">' + parts.map((p,i)=>'<div><span><i style="background:'+DASH_COLORS[i%DASH_COLORS.length]+'"></i>'+esc(p.name)+'</span><b>'+dashNum(p.value)+'</b></div>').join('') + '</div></div>';
+}
+function dashLine(rows,key,color) {
+  if(!rows.length)return '<div class="dash-empty">За этот период данных пока нет.</div>';
+  const max=Math.max(1,...rows.map(r=>Number(r[key])||0)),points=rows.map((r,i)=>(rows.length===1?150:i/(rows.length-1)*300)+','+(98-(Number(r[key])||0)/max*84)).join(' ');
+  return '<div class="dash-line"><svg viewBox="0 0 300 112" role="img" aria-label="' + esc(rows.map(r=>r.day+': '+(r[key]||0)).join('; ')) + '"><path d="M0 14H300 M0 56H300 M0 98H300" stroke="var(--line)" stroke-width="1"/><polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'+rows.map((r,i)=>'<circle cx="'+(rows.length===1?150:i/(rows.length-1)*300)+'" cy="'+(98-(Number(r[key])||0)/max*84)+'" r="3" fill="'+color+'"><title>'+esc(r.day+': '+(r[key]||0))+'</title></circle>').join('')+'</svg><div class="dash-line-labels"><span>'+esc(rows[0].day.slice(5).split('-').reverse().join('.'))+'</span><span>Максимум: '+dashNum(max)+'</span><span>'+esc(rows[rows.length-1].day.slice(5).split('-').reverse().join('.'))+'</span></div></div>';
+}
+function dashTeamHtml(t) {
+  const m=t.metrics,p=t.portfolio,co=t.cohort,total=p.work+p.road+p.done+p.archive;
+  return '<div class="dash-team"><div class="dash-team-head"><span>'+esc(t.emoji+' '+t.id)+'</span><button data-dteam="'+esc(t.id)+'">Выбрать →</button></div><div class="dash-stack" role="img" aria-label="В работе '+p.work+', в пути '+p.road+', доехали '+p.done+', архив '+p.archive+'">'+[p.work,p.road,p.done,p.archive].map((v,i)=>'<i style="width:'+(total?v/total*100:0)+'%;background:'+DASH_COLORS[i]+'"></i>').join('')+'</div><div class="dash-stats"><span><b>'+m.calls+'</b>звонков</span><span><b>'+m.wa+'</b>апрувов WA</span><span><b>'+m.arrivals+'</b>доехали за период</span></div><div class="dash-meta">В путь: '+m.departures+' · расходы '+money(m.spend)+' · на архив '+money(m.loss)+'</div><div class="dash-meta">Из новых доехали: '+co.arrived+' / '+co.entered+' · '+dashPct(co.arrived,co.entered)+'</div>'+(S.dp==='month'&&!S.doff&&t.plan?'<div class="dash-goal"><header><span>План доездов за месяц</span><b>'+m.arrivals+' / '+t.plan+'</b></header>'+dashBar('',m.arrivals,t.plan,'var(--arr)',' ' )+'</div>':'')+'</div>';
+}
+function dashPeopleHtml(people) {
+  const metrics={calls:'Звонки',wa:'Апрувы WA',comments:'Комментарии',departures:'В путь',arrivals:'Доехали',spend:'Расходы',loss:'На архив'};S.dm=metrics[S.dm]?S.dm:'calls';
+  const metric=S.dm,sorted=people.slice().sort((a,b)=>b.metrics[metric]-a.metrics[metric]),max=Math.max(0,...sorted.map(p=>p.metrics[metric]));
+  return '<div class="chips" style="margin-bottom:12px">'+Object.keys(metrics).map(k=>'<button class="chip'+(k===metric?' on':'')+'" data-dmetric="'+k+'">'+metrics[k]+'</button>').join('')+'</div><div class="dash-caption">'+(metric==='departures'||metric==='arrivals'?'Кто отметил переход этапа. Это автор записи, а не единственный участник результата.':metric==='spend'||metric==='loss'?'Кто внёс одобренную трату. «На архив» — расходы периода на кандидатов, которые сейчас в архиве.':'Действия, записанные в журнале CRM за выбранный период.')+'</div>'+sorted.map(p=>'<div class="dash-person"><div class="dash-person-name"><b>'+esc(p.id==='wrkinindonesia'?'Музыкант':p.name)+'</b><b>'+esc(metric==='spend'||metric==='loss'?money(p.metrics[metric]):dashNum(p.metrics[metric]))+'</b></div><small>'+esc(p.role+(p.teams.length?' · '+p.teams.join(', '):''))+'</small><div class="dash-track"><i style="width:'+(max?p.metrics[metric]/max*100:0)+'%;background:'+(metric==='loss'?'var(--bad)':'var(--amber)')+'"></i></div><small>Звонки '+p.metrics.calls+' · WA '+p.metrics.wa+' · комментарии '+p.metrics.comments+' · документы '+p.metrics.documents+'</small></div>').join('');
+}
+function analyticsBody(D,kind) {
+  const ts=S.dt?D.teams.filter(t=>t.id===S.dt):D.teams,m=ts.reduce((a,t)=>{Object.keys(a).forEach(k=>a[k]+=t.metrics[k]);return a;},Object.fromEntries(Object.keys(D.overall).map(k=>[k,0]))),p=ts.reduce((a,t)=>{Object.keys(a).forEach(k=>a[k]+=t.portfolio[k]);return a;},Object.fromEntries(Object.keys(D.portfolio).map(k=>[k,0]))),co=ts.reduce((a,t)=>{Object.keys(a).forEach(k=>a[k]+=t.cohort[k]);return a;},{entered:0,departed:0,arrived:0});
+  // Персональные события не отфильтровываются по текущему составу команд: общие менеджеры работают в нескольких командах.
+  const people=D.people;
+  const legend='<div class="dash-legend">'+['В работе','В пути','Доехали','Архив'].map((x,i)=>'<span><i style="background:'+DASH_COLORS[i]+'"></i>'+x+'</span>').join('')+'</div>';
+  const funnel=dashCard('Путь новых кандидатов','Кандидаты, впервые взятые в работу за выбранный период. Их продвижение — на сегодня.', '<div class="dash-steps">'+[['Взяты в работу',co.entered],['Дошли до «В пути»',co.departed],['Доехали',co.arrived]].map((x,i)=>'<div class="dash-step"><span class="n">0'+(i+1)+'</span><div><span class="title">'+x[0]+'</span><div class="dash-track"><i style="width:'+(co.entered?x[1]/co.entered*100:0)+'%;background:'+DASH_COLORS[i]+'"></i></div></div><b>'+x[1]+'</b></div>').join('')+'</div><div class="dash-meta" style="margin-top:15px">Конверсия в доезд: '+dashPct(co.arrived,co.entered)+'</div>','dash-hero');
+  const kpis='<div class="dash-kpis dash-wide">'+dashKpi('Записано звонков',dashNum(m.calls),'gold')+dashKpi('Подтверждений WA',dashNum(m.wa),'good')+dashKpi('В путь за период',dashNum(m.departures),'')+dashKpi('Доехали за период',dashNum(m.arrivals),'good')+dashKpi('Расходы на кандидатов',money(m.spend),'')+dashKpi('Из них на архив',money(m.loss),'bad')+dashKpi('Новых в работе',dashNum(m.entered),'')+dashKpi('Комментарии за сутки',p.fresh+' / '+p.active,'',dashPct(p.fresh,p.active)+' активных')+'</div>';
+  const teamCards=dashCard('Команды','Результаты периода. Цветная полоса — текущий портфель.',ts.map(dashTeamHtml).join('')+legend,'dash-wide');
+  const current=dashCard('Портфель сейчас','Текущие этапы всех кандидатов выбранной команды.',dashDonut([{name:'В работе',value:p.work},{name:'В пути',value:p.road},{name:'Доехали',value:p.done},{name:'Архив',value:p.archive}],'кандидатов'));
+  const readiness=dashCard('Готовность команды','Кандидаты в работе и в пути, на текущий момент.','<div class="dash-bars">'+dashBar('Комментарии за сутки',p.fresh,p.active,'var(--arr)',p.fresh+' / '+p.active)+dashBar('Все документы',p.full,p.active,'var(--blue)',p.full+' / '+p.active)+'</div>');
+  const losses=D.losses.filter(x=>!S.dt||x.team===S.dt);
+  const finance=dashCard('Куда уходят деньги','Одобренные расходы за период. Не включает ожидающие и отклонённые траты.',S.dt?'<div class="dash-meta">На кандидатов '+money(m.spend)+' · на архив '+money(m.loss)+'</div>':'<div class="dash-bars">'+D.categories.map(x=>dashBar(x.name,x.sum,Math.max(0,...D.categories.map(x=>x.sum)),'var(--blue)',money(x.sum))).join('')+'</div><div class="dash-meta">Инфраструктура отдельно: '+money(D.infra)+'</div>');
+  const lost=dashCard('Расходы на архив','Траты выбранного периода на кандидатов, которые сейчас в архиве.',losses.length?losses.map(x=>'<button class="dash-loss" data-dcandidate="'+esc(x.key)+'"><span>'+esc(x.name)+'<small>'+esc(x.team+' · '+x.reason)+'</small></span><b>'+money(x.sum)+' →</b></button>').join(''):'<div class="dash-empty">Таких расходов за период нет.</div>');
+  const historyDate=D.coverage.firstAction?new Date(D.coverage.firstAction).toLocaleDateString('ru-RU'):'пока пуст';
+  const method='<details class="dash-card dash-method dash-wide"><summary>Как считаются показатели</summary>Звонки и апрувы WA — записи журнала, включая повторные действия. Выезды, доезды и архив за период — уникальные кандидаты по каждому событию. Команда события берётся из истории этапов; расходы — по команде на дату траты. Персональные показатели относятся к автору записи. Старые записи «Руководитель» без ника вынесены отдельно, чтобы не приписывать их неверному человеку.<br><br>График по людям охватывает все команды, даже при выборе одной команды. Журнал действий начинается '+esc(historyDate)+'. Звонки, которые не записаны в CRM, здесь не учитываются. В воронке для старых кандидатов без истории используется дата входа из существующего отчёта. «Доехал» означает, что этап «В пути» пройден, даже если его забыли записать. Потери — расходы на архив, а не оценка вины сотрудника.</details>';
+  return kpis+(kind==='funnel'?funnel+current+readiness+teamCards:teamCards+(!S.dt?dashCard('Звонки по дням','Все команды · записи журнала за период',dashLine(D.daily,'calls','var(--amber)')):'')+funnel+finance+lost)+dashCard('Активность сотрудников','Все команды · выбери показатель для сравнения',dashPeopleHtml(people),'dash-wide')+method;
+}
+async function showAnalytics(kind) {
+  if(!ME.boss)return kind==='funnel'?showView('f','Воронка'):showLegacyRep();
+  S.dp=S.dp||'month';S.doff=S.doff||0;S.dt=S.dt||'';
+  const token=++DASH_REQUEST,route=kind==='funnel'?'funnel':'rep';
+  app.innerHTML='<div class="top dash-top"><div class="dash-kicker">Панель руководителя</div><div class="dash-head"><h1 class="h1">'+(kind==='funnel'?'Воронка':'Отчёты')+'</h1><button class="ghost" id="dash-refresh">Обновить</button></div><div class="dash-meta">'+(kind==='funnel'?'От входа в работу до приезда':'Результаты, действия и деньги — в одном месте')+'</div><div class="dash-controls"><select id="dash-period" aria-label="Период">'+[['month','По месяцам'],['7','Последние 7 дней'],['30','Последние 30 дней']].map(x=>'<option value="'+x[0]+'"'+(S.dp===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select><select id="dash-team" aria-label="Команда"><option value="">Все команды</option>'+ME.teamList.concat([{t:'Без команды',e:'❔'}]).map(t=>'<option value="'+esc(t.t)+'"'+(S.dt===t.t?' selected':'')+'>'+esc(t.e+' '+t.t)+'</option>').join('')+'</select></div>'+(S.dp==='month'?'<div class="dash-month"><button class="ghost" id="dash-prev">← Раньше</button><span id="dash-label">Загрузка…</span><button class="ghost" id="dash-next"'+(!S.doff?' disabled':'')+'>Позже →</button></div>':'<div class="dash-meta" id="dash-label"></div>')+(kind==='rep'?'<button class="ghost" id="dash-details" style="margin-top:8px">Подробные отчёты и журнал →</button>':'')+'</div><div class="dash" id="dash-content"><div class="dash-card dash-wide dash-empty"><span class="spin"></span> Считаю результаты…</div></div>';
+  $('#dash-refresh').onclick=()=>showAnalytics(kind);
+  $('#dash-period').onchange=e=>{S.dp=e.target.value;S.doff=0;showAnalytics(kind);};
+  $('#dash-team').onchange=e=>{S.dt=e.target.value;showAnalytics(kind);};
+  if($('#dash-prev'))$('#dash-prev').onclick=()=>{S.doff=Math.min(24,S.doff+1);showAnalytics(kind);};if($('#dash-next'))$('#dash-next').onclick=()=>{S.doff=Math.max(0,S.doff-1);showAnalytics(kind);};
+  if($('#dash-details'))$('#dash-details').onclick=()=>{S.legacyRep=true;showLegacyRep();};
+  try {const D=await api('analytics',{period:S.dp,off:S.doff});if(token!==DASH_REQUEST||stack.length||S.tab!==route)return;DASH_DATA=D;$('#dash-label').textContent=D.label;$('#dash-content').innerHTML=analyticsBody(D,kind);bindAnalytics(kind);}
+  catch(e){if(token!==DASH_REQUEST||S.tab!==route||stack.length)return;$('#dash-content').innerHTML='<div class="dash-card dash-wide dash-error">'+esc(e.message)+'<br>Нажми «Обновить», чтобы повторить.</div>';}
+}
+function bindAnalytics(kind) {
+  app.querySelectorAll('[data-dmetric]').forEach(b=>b.onclick=()=>{S.dm=b.dataset.dmetric;$('#dash-content').innerHTML=analyticsBody(DASH_DATA,kind);bindAnalytics(kind);});
+  app.querySelectorAll('[data-dteam]').forEach(b=>b.onclick=()=>{S.dt=b.dataset.dteam;showAnalytics(kind);});
+  app.querySelectorAll('[data-dcandidate]').forEach(b=>b.onclick=()=>{stack.push({kind:'card',k:b.dataset.dcandidate});render();});
+}
+function boardBody(D) {
+  const registered=D.people.filter(p=>p.id!=='outside'),metric=S.bm||'dialogs',ranked=registered.slice().sort((a,b)=>b[metric]-a[metric]||b.dialogs-a.dialogs||b.calls-a.calls),total=D.people.reduce((a,p)=>a+p.calls,0),dialogs=D.people.reduce((a,p)=>a+p.dialogs,0),max=Math.max(0,...ranked.map(p=>p[metric]));
+  const contenders=ranked.filter(p=>p.calls>0),top=contenders.slice(0,3),order=top.length===3?[top[1],top[0],top[2]]:top;
+  const tied=top.length>1&&top[0][metric]===top[1][metric];
+  const podium=order.length?'<div class="dash-podium">'+order.map(p=>{const place=top.indexOf(p);return '<div class="'+(place===0?'first':'')+'"><span class="medal">'+(tied?'⭐':['🥇','🥈','🥉'][place])+'</span><span class="name">'+esc(p.name)+'</span><b>'+p[metric]+'</b><small>'+(metric==='dialogs'?'диалогов':'звонков')+'</small></div>';}).join('')+'</div>':'<div class="dash-empty">В этой смене пока нет звонков. Первый результат откроет рейтинг.</div>';
+  const lead=contenders[0],own=ranked.find(p=>p.id===ME.u);const gap=lead&&own&&own.id!==lead.id?Math.max(0,lead[metric]-own[metric]):0;
+  const leaderNote=lead?(tied?'Одинаковый результат — лидеры делят первое место.':own&&gap?'До результата лидера: '+gap+' '+(metric==='dialogs'?'подтверждённых диалогов':'звонков')+'.':esc(lead.name)+' задаёт темп смены.'):'Каждый записанный результат продвигает команду.';
+  return '<div class="dash-kpis dash-wide">'+dashKpi('Прозвонено заявок',total,'gold')+dashKpi('Подтверждено диалогов',dialogs,'good')+dashKpi('Диалоги / прозвон',dashPct(dialogs,total),'', 'Цель — 25%')+dashKpi('Ждут проверки WA',D.people.reduce((a,p)=>a+p.wait,0),'')+'</div>'+dashCard('Гонка смены','Сравниваем объём прозвона и подтверждённые диалоги.','<div class="chips"><button class="chip'+(metric==='dialogs'?' on':'')+'" data-bmetric="dialogs">По диалогам</button><button class="chip'+(metric==='calls'?' on':'')+'" data-bmetric="calls">По прозвону</button></div>'+podium+'<p class="dash-meta">'+leaderNote+'</p>','dash-hero dash-wide')+dashCard('Кто держит темп','Доля прозвоненных заявок каждого участника в этой смене.',dashDonut(D.people.map(p=>({name:p.name,value:p.calls})),'заявок'))+dashCard('Цели смены','Прогресс относительно действующих целей из отчёта.',D.goals.length?D.goals.map(g=>'<div class="dash-goal"><header><span>'+esc(g.name)+'</span><b>'+(g.met?'✓ ':'')+Math.round(g.pct*100)+'%</b></header><div class="dash-track"><i style="width:'+Math.min(100,g.pct/g.target*100)+'%;background:'+(g.met?'var(--arr)':'var(--amber)')+'"></i></div><small>Цель '+Math.round(g.target*100)+'%'+(g.of?' · '+esc(g.of):'')+'</small></div>').join(''):'<div class="dash-empty">Цели пока не рассчитаны.</div>')+dashCard('Результаты звонарей','Место — по выбранному показателю. При равенстве показатели показываем без преимущества.',ranked.map((p,i)=>{const place=ranked.findIndex(x=>x[metric]===p[metric])+1;return '<div class="dash-person"><div class="dash-person-name"><b>'+place+'. '+esc(p.name)+(p.id===ME.u?' · ты':'')+'</b><span class="badge">'+dashPct(p.dialogs,p.calls)+' диалогов</span></div><small>'+esc(p.team)+'</small>'+dashBar(metric==='dialogs'?'Подтверждено диалогов':'Прозвонено заявок',p[metric],max,'var(--amber)')+'<div class="dash-stats"><span><b>'+p.calls+'</b>заявок прозвонено</span><span><b>'+p.moved+'</b>перевёл в WA</span><span><b>'+p.dialogs+'</b>подтверждено</span></div><small>Повторно прозвонены: '+p.recalls+' · ждут WA: '+p.wait+' · без диалога: '+p.no+(D.boss&&p.last?' · последний звонок '+new Date(p.last).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК':'')+'</small></div>';}).join(''),'dash-wide')+(D.boss?dashCard('Где нужна помощь','Задачи команды на текущий момент.','<div class="dash-bars">'+D.backlog.map(b=>dashBar(b.name,b.n,Math.max(1,...D.backlog.map(x=>x.n)),b.bad?'var(--bad)':'var(--blue)')).join('')+'</div>','dash-wide'):'')+'<div class="dash-card dash-method dash-wide">Табло считает заявки с последним звонком в окне смены, как существующий отчёт бота. Повторные попытки по одной заявке не увеличивают число «прозвонено». Диалог засчитывается после подтверждения команды; это результат звонаря и менеджера вместе. Автообновление раз в минуту, пока вкладка открыта.</div>';
+}
+async function showBoard() {
+  const token=++DASH_REQUEST;
+  app.innerHTML='<div class="top dash-top"><div class="dash-kicker">Живое табло · гонка смены</div><div class="dash-head"><h1 class="h1">Табло</h1><button class="ghost" id="board-refresh">Обновить</button></div><div class="dash-meta" id="board-stamp">Загрузка текущей смены…</div></div><div class="dash" id="board-content"><div class="dash-card dash-wide"><span class="spin"></span></div></div>';
+  const load=async()=>{try{const D=await api('boarddata');if(token!==DASH_REQUEST||S.tab!=='board'||stack.length)return;BOARD_DATA=D;$('#board-stamp').textContent=D.title+' · '+(D.on?'Смена идёт':'Итог смены')+' · '+new Date(D.generatedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';$('#board-content').innerHTML=boardBody(D);bindBoard();}catch(e){if(token!==DASH_REQUEST||S.tab!=='board'||stack.length)return;const el=$('#board-content');el.innerHTML='<div class="dash-error dash-wide">'+esc(e.message)+' · Нажми «Обновить»</div>'+(BOARD_DATA?boardBody(BOARD_DATA):'');bindBoard();}};
+  $('#board-refresh').onclick=load;await load();if(token===DASH_REQUEST&&S.tab==='board'&&!stack.length)boardTimer=setInterval(()=>{if(!document.hidden)load();},60e3);
+}
+function bindBoard(){app.querySelectorAll('[data-bmetric]').forEach(b=>b.onclick=()=>{S.bm=b.dataset.bmetric;$('#board-content').innerHTML=boardBody(BOARD_DATA);bindBoard();});}
 
 // Комментарии: 24 часа, любой автор, вопросы руководителя обрабатываются отдельно.
 let CM_PICK = '', CM_OPEN = '', CM_PLACE = '', CM_BUSY = '', CM_DRAFTS = {}, CM_PULSE = false;
