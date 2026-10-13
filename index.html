@@ -385,7 +385,7 @@ async function showList(reload) {
     + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
-    + '<div class="wrap">' + teamIssuesHtml() + '<div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+    + '<div class="wrap">' + '<div id="team-issues">' + teamIssuesHtml() + '</div><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
   $('#filter-reset').onclick = () => { S.f = 'a'; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
@@ -445,6 +445,7 @@ async function waBox() {
   const el = $('#wabox'); if (!el) return;
   try { if (!WA) WA = await api('wa'); } catch (e) { return; }
   if (!$('#wabox')) return;
+  if (ME.u === 'mster_karabas') { el.innerHTML = ''; const summary = $('#team-issues'); if (summary) summary.innerHTML = teamIssuesHtml(); return; }
   const visibleWA = ME.u === 'wrkinrussia' ? WA.filter(L => L.t === 'Команда 4') : WA;
   if (!visibleWA.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<div class="sec wa"><h2>Диалог в WhatsApp есть? <small>' + visibleWA.length + '</small></h2>' + visibleWA.map(L => '<div class="wa-entry"><div class="row"><div class="t"><div class="name" style="font-size:14.5px">' + (ME.flagsEmo[L.c] || '🌍') + ' ' + esc(L.n) + '</div><div class="meta">'
@@ -876,21 +877,23 @@ function bindAnalyticsCandidates(){app.querySelectorAll('[data-dcandidate]').for
 let CM_PICK = '', CM_OPEN = '', CM_PLACE = '', CM_BUSY = '', CM_DRAFTS = {}, CM_PULSE = false;
 const freshComment = (c, now = Date.now()) => !!(c.cm && String(c.cm[2] || '').trim() && now - Number(c.cm[0]) < 864e5);
 const activeCandidate = c => c.st === 'В работе' || c.st === 'В пути';
-const ownReminder = c => ME.u !== 'wrkinrussia' || c.t === 'Команда 4';
+const ownReminder = c => ME.u !== 'mster_karabas' && (ME.u !== 'wrkinrussia' || c.t === 'Команда 4');
 const canComment = c => !!(ME && c.t && (ME.boss || ME.teams.indexOf(c.t) >= 0));
 function teamIssuesHtml() {
-  if (!ME || ME.u !== 'wrkinrussia') return '';
+  if (!ME || !['wrkinrussia', 'mster_karabas'].includes(ME.u)) return '';
   const rows = ME.teamList.map(t => {
     const group = LIST.filter(c => c.t === t.t && activeCandidate(c));
     const comments = group.filter(c => !freshComment(c)).length;
     const docs = group.filter(c => (c.fl || []).includes('docs')).length;
     const flight = group.filter(c => (c.fl || []).includes('nofly')).length;
     const idle = group.filter(c => (c.fl || []).includes('idle') || (c.fl || []).includes('road')).length;
-    const problems = group.filter(c => !freshComment(c) || (c.fl || []).some(f => ['docs','nofly','idle','road'].includes(f))).length;
-    return { t, comments, docs, flight, idle, problems };
+    const wa = ME.u === 'mster_karabas' ? (WA || []).filter(c => c.t === t.t) : [];
+    const issues = group.filter(c => !freshComment(c) || (c.fl || []).some(f => ['docs','nofly','idle','road'].includes(f)));
+    const problems = new Set(issues.concat(wa).map(c => c.k)).size;
+    return { t, comments, docs, flight, idle, wa: wa.length, problems };
   }).filter(r => r.problems);
   const count = rows.reduce((n,r) => n + r.problems, 0);
-  return '<details class="team-alerts"><summary><b>' + (count ? '⚠️ Команды · ' + count + ' требуют внимания' : '✅ Команды · замечаний нет') + '</b><span>Сводка ⌄</span></summary><div class="team-alerts-body">' + (rows.length ? rows.map(r => '<div class="team-alert-row"><b>' + esc(r.t.e + ' ' + r.t.t) + '</b><span>' + [r.comments ? 'Комментарии: ' + r.comments : '', r.docs ? 'Документы к вылету: ' + r.docs : '', r.flight ? 'Не записан вылет: ' + r.flight : '', r.idle ? 'Без движения: ' + r.idle : ''].filter(Boolean).join('<br>') + '</span></div>').join('') : '<div class="sub">Свежие комментарии есть, срочных пропусков в документах и датах вылета нет.</div>') + '</div></details>';
+  return '<details class="team-alerts"><summary><b>' + (count ? '⚠️ Команды · ' + count + ' требуют внимания' : '✅ Команды · замечаний нет') + '</b><span>Сводка ⌄</span></summary><div class="team-alerts-body">' + (rows.length ? rows.map(r => '<div class="team-alert-row"><b>' + esc(r.t.e + ' ' + r.t.t) + '</b><span>' + [r.wa ? 'Ждут проверки WA: ' + r.wa : '', r.comments ? 'Комментарии: ' + r.comments : '', r.docs ? 'Документы к вылету: ' + r.docs : '', r.flight ? 'Не записан вылет: ' + r.flight : '', r.idle ? 'Без движения: ' + r.idle : ''].filter(Boolean).join('<br>') + '</span></div>').join('') : '<div class="sub">Свежие комментарии есть, срочных пропусков в документах и датах вылета нет.</div>') + '</div></details>';
 }
 function cmPending() {
   const selected = /^t\d$/.test(S.f) && ME.teamList[+S.f.slice(1)] ? ME.teamList[+S.f.slice(1)].t : '';
@@ -951,7 +954,7 @@ function bindQuickComments() {
 let GOAL_TIMER = null, GOAL_FRESH = false, PARTY_CLOSE = null, PARTY_QUEUE = [];
 const docsComplete = c => !!(ME && ME.docs.length && ME.docs.every(d => (c.docs || []).indexOf(d[0]) >= 0));
 function observeGoals(list) {
-  if (!ME) return;
+  if (!ME || ME.u === 'mster_karabas') return;
   if (ME.u === 'wrkinrussia') list = list.filter(c => c.t === 'Команда 4');
   const now = Date.now(), day = new Date(now + MSK).toISOString().slice(0, 10);
   const memory = lsGet('goal-memory') || { candidates: {}, seen: {} }; memory.candidates = memory.candidates || {}; memory.seen = memory.seen || {};
