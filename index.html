@@ -423,7 +423,7 @@ setInterval(refreshFlightCountdowns, 60000);
 document.addEventListener('visibilitychange', refreshFlightCountdowns);
 function itemHtml(c) {
   const te = (ME.teamList.find(t => t.t === c.t) || {}).e || '❔';
-  const bits = [c.st === 'В работе' ? '' : c.st, te + ' ' + (c.t ? c.t.replace('Команда ', 'команда ') : 'без команды'), 'документы ' + c.docs.length + '/' + ME.docs.length];
+  const bits = [c.st === 'В работе' ? '' : c.st, te + ' ' + (c.t ? c.t.replace('Команда ', 'команда ') : 'без команды'), 'документы ' + c.docs.length + '/' + candidateDocs(c).length];
   if (c.fly) bits.push('вылет ' + fmt(c.fly, 'd')); if (c.sp) bits.push(money(c.sp));
   return '<div class="item-wrap"><button class="item" data-k="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '<span class="flags">' + flagSet(c) + '</span>' + flightCountdownHtml(c) + '</div>'
     + '<div class="days"><b>' + (c.days || 0) + '</b><span>' + (c.days === 1 ? 'день' : c.days >= 2 && c.days <= 4 ? 'дня' : 'дней') + '</span></div>'
@@ -434,6 +434,7 @@ function itemHtml(c) {
     + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + cmQuickHtml(c) + '</div>';
 }
 function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
+function candidateDocs(c) { return ME.docs.filter(d => d[0] !== 'mdac' || String(c.c || '').trim().toLowerCase() === 'indonesia'); }
 function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? d[1].replace(' / бронь', '') : code; }
 
 // ---------- поиск по всем заявкам и «Взять в работу» ----------
@@ -656,11 +657,12 @@ async function showCard(k, keep) {                          // keep — обно
     + (c.ph2 ? '<dt>Доп. номер</dt><dd>' + esc(c.ph2) + '</dd>' : '') + '<dt>WhatsApp</dt><dd>' + esc(c.wa || '—') + '</dd>'
     + '<dt>Заявка</dt><dd>' + fmt(c.created) + ', звонков ' + c.tries + (c.res ? '. ' + esc(c.res) : '') + '</dd>' + (c.src ? '<dt>Источник</dt><dd>' + esc(c.src) + '</dd>' : '') + '</dl></div>';
   // документы
-  let docsH = '<div class="sec" id="card-documents"><h2>Документы <small>' + c.docs.length + ' из ' + ME.docs.length + '</small></h2><div class="docs">'
-    + ME.docs.map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + (c.can && ME.ftypes.indexOf('Другое') >= 0 ? '<button class="doc" id="dother">📎 Другое</button>' : '') + '</div>'
+  let docsH = '<div class="sec" id="card-documents"><h2>Документы <small>' + c.docs.length + ' из ' + candidateDocs(c).length + '</small></h2><div class="docs">'
+    + candidateDocs(c).map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + (c.can && ME.ftypes.indexOf('Другое') >= 0 ? '<button class="doc" id="dother">📎 Другое</button>' : '') + '</div>'
     + (c.can ? '<div class="sub" style="margin-top:10px">Нажмите на документ — откроется камера или галерея, фото сохранится и документ отметится. <button class="more" id="mk" style="display:inline;width:auto;padding:0">Отметить без файла</button></div><div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid" accept="image/*,video/*,application/pdf"></div>' : '')
     + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</li>').join('') + '</ul>'
       + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
+  let visaH = ''; if (c.evisa) visaH = '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub">Почта и пароль, внесённые менеджером</div><div class="form"><label class="sub" for="visa-email">Почта eVisa</label><input id="visa-email" type="email" autocomplete="off" placeholder="Почта для входа" value="' + esc(c.evisa.email) + '"><button class="b" id="visa-copy-email">📋 Скопировать почту</button><label class="sub" for="visa-password">Пароль</label><input id="visa-password" type="password" autocomplete="new-password" placeholder="Пароль для входа" value="' + esc(c.evisa.password) + '"><div class="two"><button class="b" id="visa-show">Показать пароль</button><button class="b" id="visa-copy-password">📋 Скопировать пароль</button></div><button class="b main" id="visa-save">Сохранить данные eVisa</button><a class="b" href="https://evisa.kdmid.ru" data-link style="display:block;text-align:center">↗ Открыть evisa.kdmid.ru</a></div></div>';
   // вылет
   const fv = c.fly ? new Date(c.fly + MSK).toISOString().slice(0, 16) : '';
   let flyH = '<div class="sec"><h2>Вылет <small>по Москве</small></h2><div class="' + (c.fly ? 'flyv' : 'sub') + '">' + (c.fly ? fmt(c.fly, 'dy') + ', ' + fmt(c.fly).slice(6) : 'Дата не назначена') + '</div>'
@@ -687,20 +689,25 @@ async function showCard(k, keep) {                          // keep — обно
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
-  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
+  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c); observeBudgetCard(c);
 }
-async function flightDocumentNudge() {
+async function flightDocumentNudge(c) {
   hap('error');
-  const choice = await sheet('🙄 Ну куда ставим вылет?', 'Сначала загрузи паспорт или ID к кандидату. Отметки «документ есть» недостаточно.', [{id:'docs',text:'📎 Загрузить паспорт или ID'},{type:'cancel'}]);
-  if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = 'Паспорт'; }
+  const choice = await sheet('🙄 Ну куда ставим вылет?', 'Сначала загрузи: ' + ((c.flightMissing || []).length ? c.flightMissing.join(', ') : 'паспорт или ID') + '. Отметки «документ есть» недостаточно.', [{id:'docs',text:'📎 Загрузить паспорт или ID'},{type:'cancel'}]);
+  if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = c.flightMissing && c.flightMissing.length === 1 && c.flightMissing[0] === 'MDAC' ? 'MDAC' : 'Паспорт'; }
 }
 function bindCard(c) {
   const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
-    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /Сначала загрузи паспорт или ID/.test(e.message)) await flightDocumentNudge(); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
+    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  const copyVisa = async id => { const input = $(id); if (!input || !input.value) return toast('Сначала заполните поле'); try { await navigator.clipboard.writeText(input.value); hap(); toast('Скопировано'); } catch (_) { input.focus(); input.select(); toast('Поле выделено — выберите «Скопировать»'); } };
+  on('visa-copy-email', () => copyVisa('#visa-email'));
+  on('visa-copy-password', () => copyVisa('#visa-password'));
+  on('visa-show', b => { const input = $('#visa-password'); input.type = input.type === 'password' ? 'text' : 'password'; b.textContent = input.type === 'password' ? 'Показать пароль' : 'Скрыть пароль'; });
+  on('visa-save', b => run(b, 'evisa', { email: $('#visa-email').value, password: $('#visa-password').value }, 'Данные eVisa сохранены'));
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
   app.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); tg ? tg.openLink(a.href) : window.open(a.href); });
@@ -720,7 +727,7 @@ function bindCard(c) {
     const btn = $('#up'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
     try { const x = await shrink(f); await api('upload', { k: k, type: $('#ft').value, b64: x.b, mime: x.mime, fname: f.name }); again('Файл сохранён'); } catch (e) { toast(e.message); btn.disabled = false; btn.innerHTML = '⬆️ Загрузить файл'; } };
   on('sf', b => run(b, 'sendfiles', {}, 'Файлы отправлены вам в бот'));
-  on('flys', async b => { if (!c.identityUploaded) { await flightDocumentNudge(); return; } const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
+  on('flys', async b => { if (!c.identityUploaded || (c.flightMissing || []).length) { await flightDocumentNudge(c); return; } const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
     run(b, 'fly', { ts: Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) - MSK }, 'Вылет записан'); });
   on('flyx', async b => { if (await confirmP('Удалить дату вылета?')) run(b, 'fly', { ts: 0 }, 'Дата удалена'); });
   on('sadd', async b => { const sum = $('#ss').value, f = $('#sck').files[0]; let x = null;
@@ -981,7 +988,7 @@ function bindQuickComments() {
 
 // Цели оцениваются только по свежему ответу сервера, не по кэшированному экрану.
 let GOAL_TIMER = null, GOAL_FRESH = false, PARTY_CLOSE = null, PARTY_QUEUE = [];
-const docsComplete = c => !!(ME && ME.docs.length && ME.docs.every(d => (c.docs || []).indexOf(d[0]) >= 0));
+const docsComplete = c => !!(ME && candidateDocs(c).length && candidateDocs(c).every(d => (c.docs || []).indexOf(d[0]) >= 0));
 function observeGoals(list) {
   if (!ME || ME.u === 'mster_karabas') return;
   if (ME.u === 'wrkinrussia') list = list.filter(c => c.t === 'Команда 4');
