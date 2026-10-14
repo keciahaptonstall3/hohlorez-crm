@@ -167,6 +167,14 @@ input,textarea,select{transition:border-color 160ms ease}
 .cm-quick .b{padding:8px 11px;font-size:13px;color:var(--amber)}
 .item-wrap+.item-wrap{border-top:1px solid var(--line)}
 .item-wrap .item{border-top:0}
+.focus-row-action{display:flex;justify-content:flex-end;padding:0 16px 10px}
+.focus-toggle{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:13px;background:var(--raise);color:var(--muted);padding:6px 12px;font:500 12px var(--body)}
+.focus-toggle span{font-size:24px;vertical-align:middle;margin-right:5px}
+.focus-toggle[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
+.focus-pop{animation:focus-pop 600ms cubic-bezier(.2,.8,.3,1)}
+.focus-splash-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:98;pointer-events:none}
+@keyframes focus-pop{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-32deg) scale(.86)}45%{transform:rotate(14deg) scale(1.35)}70%{transform:rotate(-8deg) scale(1.12)}100%{transform:rotate(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.focus-pop{animation:none!important}}
 .team-win{border:1px solid color-mix(in srgb,var(--arr) 45%,var(--line));color:var(--arr);margin-bottom:14px}
 .team-win p{margin:5px 0 0;font-size:13px}
 .party{position:fixed;inset:0;z-index:110;pointer-events:none;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -322,6 +330,7 @@ async function shrink(file) {                                  // фото — �
 // ---------- навигация ----------
 function nav() {
   const tabs = (ME.ind ? [['ind', '🪿', 'Заявки']] : []).concat(ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
+  if (focusAllowed()) tabs.splice(tabs.findIndex(t => t[0] === 'list') + 1, 0, ['focus', '🍆', 'Фокус']);
   if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
@@ -336,6 +345,7 @@ function render() {
   if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'add' ? showAdd() : null;
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
+  if (S.tab === 'focus' && focusAllowed()) return showFocus();
   if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
   if (S.tab === 'board') return showBoard();
   if (S.tab === 'funnel') return ME.boss ? showAnalytics('funnel') : showView('f', 'Воронка');
@@ -351,6 +361,7 @@ function tripHtml(c, labels) { const n = tripStep(c), cls = c.st === 'Доеха
     + (labels ? '<div class="trip-l">' + L.map((x, i) => '<span class="' + (i + 1 === n ? 'c' : '') + '">' + x + '</span>').join('') + '</div>' : ''); }
 function flagSet(c) { return (c.fl || []).map(f => (ME.flags[f] || [''])[0]).join(''); }
 function matches(c) {
+  if (focusAllowed() && focusKeys().includes(c.k)) return false;
   const f = S.f, act = c.st === 'В работе' || c.st === 'В пути';
   if (S.show === 'act' && !act) return false;
   if (S.show === 'done' && c.st !== 'Доехал') return false;
@@ -432,9 +443,46 @@ function itemHtml(c) {
     + (activeCandidate(c) && budgetExhausted(c) ? '<div class="warn" style="grid-column:1/-1">🚨 Бюджет: ' + money(c.sp) + ' из ' + money(ME.limit) + '</div>' : '')
     + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
     + tripHtml(c)
-    + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + cmQuickHtml(c) + '</div>';
+    + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '') + cmQuickHtml(c) + '</div>';
 }
-function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); }
+function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); bindFocus(); }
+function focusAllowed() { return !!ME && ME.u === 'saygoida'; }
+function focusKeys() { const keys = lsGet('leo-focus'); return Array.isArray(keys) ? keys.filter(k => typeof k === 'string') : []; }
+function focusButton(k) { const yes = focusKeys().includes(k); return '<button type="button" class="focus-toggle" data-focus-key="' + esc(k) + '" aria-pressed="' + yes + '"><span aria-hidden="true">🍆</span>' + (yes ? 'Убрать из Фокуса' : 'В фокус') + '</button>'; }
+async function showFocus(reload) {
+  if (!focusAllowed()) return;
+  if (LDIRTY) { reload = true; LDIRTY = false; }
+  if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(!!reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  if (stack.length || S.tab !== 'focus') return;
+  const keys = focusKeys(), items = LIST.filter(c => keys.includes(c.k));
+  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">🍆 Фокус <small>' + items.length + '</small></h1><button class="ghost" id="focus-refresh">Обновить</button></div><div class="sub">Личная подборка Лео</div></div><div class="wrap"><div class="board">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Нажми 🍆 рядом с кандидатом, чтобы добавить его в Фокус</div>') + '</div></div>';
+  $('#focus-refresh').onclick = () => showFocus(true); bindItems(); bindQuickComments();
+}
+function bindFocus() { app.querySelectorAll('[data-focus-key]').forEach(b => b.onclick = async e => {
+  e.stopPropagation(); if (!focusAllowed()) return; b.disabled = true;
+  const key = b.dataset.focusKey, keys = focusKeys(), removing = keys.includes(key);
+  // Save before the effect: navigating away must not lose the selection.
+  lsSet('leo-focus', removing ? keys.filter(k => k !== key) : [...keys, key]); hap();
+  if (!removing && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) { b.classList.add('focus-pop'); await focusSplash(b); }
+  if (b.isConnected) { if (!stack.length) S.tab === 'focus' ? showFocus() : showList(); else { const fresh = document.createElement('div'); fresh.innerHTML = focusButton(key); b.replaceWith(fresh.firstChild); bindFocus(); } }
+  toast(removing ? 'Кандидат возвращён в список' : '🍆 Добавлен в Фокус');
+}); }
+function focusSplash(button){
+  return new Promise(resolve => {
+  document.querySelectorAll(".focus-splash-canvas").forEach(el => el.remove());
+  const box={width:window.innerWidth,height:window.innerHeight,left:0,top:0},origin=button.getBoundingClientRect(),canvas=document.createElement('canvas');canvas.className='focus-splash-canvas';canvas.setAttribute('aria-hidden','true');document.body.append(canvas);
+  const w=box.width,h=box.height,dpr=Math.min(window.devicePixelRatio||1,2,Math.sqrt(2e6/(w*h)));canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);const ctx=canvas.getContext('2d');if(!ctx){canvas.remove();resolve();return;}ctx.scale(dpr,dpr);
+  const x=origin.left-box.left+origin.width*.5,y=origin.top-box.top+origin.height*.35;
+  // Three short bursts approach the glass, spread on impact, then slide down.
+  const drops=Array.from({length:36},(_,i)=>{const burst=i%3,large=i<12;return{tx:Math.random()*w,ty:55+Math.random()*(h-90),r:large?28+Math.random()*28:5+Math.random()*13,delay:burst*.19+Math.random()*.055,flight:.23+Math.random()*.12,spin:Math.random()*6.28,lobes:Array.from({length:16},(_,j)=>j%2? .58+Math.random()*.28:1+Math.random()*.65),drip:large?18+Math.random()*65:4+Math.random()*12};});
+  const started=performance.now();let frame;
+  const stop=()=>{cancelAnimationFrame(frame);canvas.remove();document.removeEventListener("visibilitychange",hidden);resolve();};
+  const hidden=()=>{if(document.hidden)stop();};document.addEventListener("visibilitychange",hidden);
+  function blob(p,r){const points=p.lobes.map((v,j)=>{const a=j*Math.PI/8+p.spin;return[Math.cos(a)*r*v,Math.sin(a)*r*v*.8];});ctx.beginPath();const last=points[15],first=points[0];ctx.moveTo((last[0]+first[0])/2,(last[1]+first[1])/2);points.forEach((a,j)=>{const next=points[(j+1)%16];ctx.quadraticCurveTo(a[0],a[1],(a[0]+next[0])/2,(a[1]+next[1])/2);});ctx.closePath();ctx.fill();}
+  function draw(time){const elapsed=(time-started)/1000;ctx.clearRect(0,0,w,h);drops.forEach(p=>{const t=elapsed-p.delay;if(t<0)return;ctx.save();ctx.fillStyle='#fff';if(t<p.flight){const u=t/p.flight,e=u*u;ctx.translate(x+(p.tx-x)*e,y+(p.ty-y)*e);ctx.rotate(Math.atan2(p.ty-y,p.tx-x));ctx.beginPath();ctx.ellipse(0,0,3+u*p.r*.38,2+u*p.r*.15,0,0,Math.PI*2);ctx.fill();}else{const age=t-p.flight,impact=Math.min(age/.12,1),scale=.4+.6*(1-Math.pow(1-impact,3));ctx.globalAlpha=Math.max(0,1-Math.max(0,age-.7)/.55);const slip=Math.max(0,age-.1)*p.drip;ctx.translate(p.tx,p.ty+slip*.2);blob(p,p.r*scale);if(age>.08){ctx.lineCap='round';ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,p.r*.18);ctx.beginPath();ctx.moveTo(p.r*.2,p.r*.3);ctx.bezierCurveTo(p.r*.25,p.r*.5,p.r*.12,p.r*.7+slip,p.r*.12,p.r*.7+slip);ctx.stroke();ctx.beginPath();ctx.ellipse(p.r*.12,p.r*.7+slip,ctx.lineWidth*.65,ctx.lineWidth*.9,0,0,Math.PI*2);ctx.fill();}ctx.globalAlpha*=.34;ctx.strokeStyle='#c5d4e5';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(-p.r*.12,-p.r*.1,p.r*.35,3.3,4.7);ctx.stroke();}ctx.restore();});if(elapsed<2.1)frame=requestAnimationFrame(draw);else stop();}
+  frame=requestAnimationFrame(draw);
+  });
+}
 function candidateDocs(c) { return ME.docs.filter(d => d[0] !== 'mdac' || String(c.c || '').trim().toLowerCase() === 'indonesia'); }
 function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? d[1].replace(' / бронь', '') : code; }
 
@@ -652,6 +700,7 @@ async function showCard(k, keep) {                          // keep — обно
   const pct = Math.min(100, Math.round(c.ok / ME.limit * 100)), barCls = c.ok >= ME.limit ? 'bad' : c.ok >= ME.limit * .8 ? 'w' : '';
   let h = '<div class="wrap"><div class="hero"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + flightCountdownHtml(c) + '</div>'
     + '<div class="meta">' + (tinfo ? tinfo.e + ' ' + esc(c.t) + ': ' + esc(tinfo.people.join(', ')) : '❔ без команды') + '</div>'
+    + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '')
     + '<div class="stage' + (c.st === 'Доехал' ? ' arr' : c.st === 'Архив' ? ' arch' : '') + '">' + esc(c.st) + '</div></div>'
     + '<div class="sec">' + tripHtml(c, true) + '<div class="acts" style="margin-top:14px"><button class="b" id="cp">' + esc(c.ph || 'нет номера') + '</button>' + (dg ? '<button class="b main" id="wa">WhatsApp</button>' : '') + '</div></div>';
   let dat = '<div class="sec quiet"><h2>Данные <small>строка ' + c.row + '</small></h2><dl class="kv"><dt>Страна</dt><dd>' + esc(c.c || '—') + '</dd><dt>Паспорт</dt><dd>' + esc(c.pass || '—') + '</dd>'
@@ -713,6 +762,7 @@ async function flightDocumentNudge(c) {
   if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = c.flightMissing && c.flightMissing.length === 1 && c.flightMissing[0] === 'MDAC' ? 'MDAC' : 'Паспорт'; }
 }
 function bindCard(c) {
+  bindFocus();
   const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
@@ -983,8 +1033,8 @@ function cmQuickHtml(c) {
   if (!activeCandidate(c) || !canComment(c) || !ownReminder(c) || freshComment(c)) return '';
   return '<div class="cm-quick">' + (CM_OPEN === c.k && CM_PLACE === 'row' ? cmEditor(c, 'row') : '<div class="acts"><span class="warn">' + (c.cm ? '🟠 Комментарию больше суток' : '🔴 Нет комментария') + '</span><button class="b" data-cm-open="' + esc(c.k) + '" data-place="row">✍️ ' + (c.cm ? 'Обновить' : 'Написать') + '</button></div>') + '</div>';
 }
-function cmListVisible() { return S.tab === 'list' && !stack.length; }
-function cmRedraw() { if (cmListVisible()) { const y = window.scrollY; showList(); window.scrollTo(0, y); } }
+function cmListVisible() { return (S.tab === 'list' || S.tab === 'focus') && !stack.length; }
+function cmRedraw() { if (cmListVisible()) { const y = window.scrollY; S.tab === 'focus' ? showFocus() : showList(); window.scrollTo(0, y); } }
 function bindQuickComments() {
   app.querySelectorAll('[data-cm-open]').forEach(b => b.onclick = () => {
     CM_OPEN = b.dataset.cmOpen; CM_PLACE = b.dataset.place; if (CM_PLACE === 'banner') CM_PICK = CM_OPEN;
