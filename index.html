@@ -329,7 +329,8 @@ async function shrink(file) {                                  // фото — �
 
 // ---------- навигация ----------
 function nav() {
-  const tabs = (ME.ind ? [['ind', '🪿', 'Заявки']] : []).concat(ME.taker ? [['call', '📞', 'Прозвон']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
+  const requestEmoji = team => (ME.teamList.find(t => t.t === team) || {}).e || '📥';
+  const tabs = (ME.ind ? [['ind', requestEmoji('Команда 4'), 'Заявки']] : []).concat(ME.taker ? [['call', requestEmoji((ME.teams || [])[0]), 'Заявки']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
   if (focusAllowed()) tabs.splice(tabs.findIndex(t => t[0] === 'list') + 1, 0, ['focus', '🍆', 'Фокус']);
   if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
