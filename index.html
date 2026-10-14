@@ -168,6 +168,7 @@ input,textarea,select{transition:border-color 160ms ease}
 .item-wrap+.item-wrap{border-top:1px solid var(--line)}
 .item-wrap .item{border-top:0}
 .focus-row-action{display:flex;justify-content:flex-end;padding:0 16px 10px}
+.attachment-row{display:flex;align-items:center;gap:8px}.attachment-info{flex:1;min-width:0;overflow-wrap:anywhere}.attachment-delete{flex:none;width:44px;height:44px;color:var(--bad);font-size:22px;border-radius:10px}.attachment-delete:active{background:var(--raise)}
 .focus-toggle{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:13px;background:var(--raise);color:var(--muted);padding:6px 12px;font:500 12px var(--body)}
 .focus-toggle span{font-size:24px;vertical-align:middle;margin-right:5px}
 .focus-toggle[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
@@ -711,7 +712,7 @@ async function showCard(k, keep) {                          // keep — обно
   let docsH = '<div class="sec" id="card-documents"><h2>Документы <small>' + c.docs.length + ' из ' + candidateDocs(c).length + '</small></h2><div class="docs">'
     + candidateDocs(c).map(d => '<button class="doc' + (c.docs.indexOf(d[0]) >= 0 ? ' on' : '') + '" data-d="' + d[0] + '"' + (c.can ? '' : ' disabled') + '>' + esc(d[1].replace(' / бронь', '')) + '</button>').join('') + (c.can && ME.ftypes.indexOf('Другое') >= 0 ? '<button class="doc" id="dother">📎 Другое</button>' : '') + '</div>'
     + (c.can ? '<div class="sub" style="margin-top:10px">Нажмите на документ — откроется камера или галерея, фото сохранится и документ отметится. <button class="more" id="mk" style="display:inline;width:auto;padding:0">Отметить без файла</button></div><div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid" accept="image/*,video/*,application/pdf"></div>' : '')
-    + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</li>').join('') + '</ul>'
+    + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li class="attachment-row"><div class="attachment-info"><div class="who">' + fmt(f[0]) + ', ' + esc(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</div>' + (c.can && f[5] ? '<button type="button" class="attachment-delete" data-delete-file="' + esc(f[5]) + '" data-file-type="' + esc(f[1]) + '" aria-label="Удалить вложение: ' + esc(f[1]) + '">×</button>' : '') + '</li>').join('') + '</ul>'
       + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
   let visaH = ''; if (c.evisa) visaH = '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub">Почта и пароль, внесённые менеджером</div><div class="form"><label class="sub" for="visa-email">Почта eVisa</label><input id="visa-email" type="email" autocomplete="off" placeholder="Почта для входа" value="' + esc(c.evisa.email) + '"><button class="b" id="visa-copy-email">📋 Скопировать почту</button><label class="sub" for="visa-password">Пароль</label><input id="visa-password" type="password" autocomplete="new-password" placeholder="Пароль для входа" value="' + esc(c.evisa.password) + '"><div class="two"><button class="b" id="visa-show">Показать пароль</button><button class="b" id="visa-copy-password">📋 Скопировать пароль</button></div><button class="b main" id="visa-save">Сохранить данные eVisa</button><a class="b" href="https://evisa.kdmid.ru" data-link style="display:block;text-align:center">↗ Открыть evisa.kdmid.ru</a></div></div>';
   // вылет
@@ -792,6 +793,9 @@ function bindCard(c) {
     const btn = $('#up'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
     try { const x = await shrink(f); await api('upload', { k: k, type: $('#ft').value, b64: x.b, mime: x.mime, fname: f.name }); again('Файл сохранён'); } catch (e) { toast(e.message); btn.disabled = false; btn.innerHTML = '⬆️ Загрузить файл'; } };
   on('sf', b => run(b, 'sendfiles', {}, 'Файлы отправлены вам в бот'));
+  app.querySelectorAll('[data-delete-file]').forEach(b => b.onclick = async () => {
+    if (await confirmP('Удалить вложение «' + b.dataset.fileType + '» из карточки? Если это последний файл этого документа, отметка о его наличии снимется.')) await run(b, 'deletefile', {file:b.dataset.deleteFile}, 'Вложение удалено');
+  });
   on('flys', async b => { if (!c.identityUploaded || (c.flightMissing || []).length) { await flightDocumentNudge(c); return; } const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
     run(b, 'fly', { ts: Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) - MSK }, 'Вылет записан'); });
   on('flyx', async b => { if (await confirmP('Удалить дату вылета?')) run(b, 'fly', { ts: 0 }, 'Дата удалена'); });
