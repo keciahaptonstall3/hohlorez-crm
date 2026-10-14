@@ -107,6 +107,7 @@ a{color:var(--blue)}
 .more{display:block;width:100%;padding:10px 0 0;color:var(--blue);font-weight:600;text-align:left}
 .empty{text-align:center;color:var(--muted);padding:56px 24px}
 .flight-countdown{display:inline-flex;vertical-align:middle;align-items:center;margin:5px 0 3px 8px;padding:5px 8px;border-radius:9px;background:var(--raise);color:var(--muted);font:600 12px/1.3 var(--body);white-space:normal;max-width:100%}.flight-countdown.soon{color:var(--amber)}.flight-countdown.urgent,.flight-countdown.past{color:var(--bad)}
+.cm-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.cm-head h2{flex:1;margin:0;min-width:140px}.cm-head input{flex:1 1 140px;min-width:120px;width:0;margin:0;padding:9px 11px;font-size:16px}.cm-text{white-space:pre-wrap;overflow-wrap:anywhere}.cm-match{color:var(--text);background:color-mix(in srgb,var(--amber) 28%,transparent);border-radius:3px}
 .flyv{font:600 20px var(--disp);color:var(--amber)}
 .tg{white-space:pre-wrap;font-size:14.5px;word-wrap:break-word;background:var(--panel);border-radius:18px;padding:15px 16px}
 .tg b{font-weight:600}
@@ -642,7 +643,7 @@ let CARDSEC = null;                                          // раздел к�
 async function showCard(k, keep) {                          // keep — обновить на месте: без крутилки и без прыжка наверх
   const y = keep ? window.scrollY : 0, typed = {};
   if (keep) app.querySelectorAll('input[id],textarea[id]').forEach(el => {   // недописанное в других разделах не теряем
-    if (el.type === 'file' || (CARDSEC && CARDSEC.contains(el))) return;
+    if (el.type === 'file' || (CARDSEC && CARDSEC.contains(el) && el.id !== 'cm-search')) return;
     if (el.value !== el.defaultValue) typed[el.id] = el.value; });
   CARDSEC = null;
   if (!keep) app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
@@ -674,8 +675,8 @@ async function showCard(k, keep) {                          // keep — обно
     + (c.can ? '<div class="form"><div class="two"><input id="ss" inputmode="decimal" placeholder="Сумма, $"><select id="sc">' + ME.cats.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div>'
       + '<input id="scm" placeholder="На что именно"><label class="sub">Фото чека. От ' + money(ME.approve) + ' обязательно: трата уйдёт руководителю на одобрение.<input type="file" id="sck" accept="image/*" style="margin-top:6px"></label><button class="b main" id="sadd">Добавить трату</button></div>' : '') + '</div>';
   // комментарии
-  let cmH = '<div class="sec"><h2>Комментарии <small>' + c.cms.length + '</small></h2>' + (c.can ? '<div class="form" style="margin:0 0 8px"><textarea id="cmt" placeholder="Что нового и какой следующий шаг?"></textarea><button class="b main" id="cms">Сохранить</button></div>' : '')
-    + (c.cms.length ? '<ul class="list" id="cml">' + c.cms.map((x, i) => '<li' + (i >= 5 ? ' class="hid"' : '') + '><div class="who">' + esc(x[1]) + ', ' + fmt(x[0]) + '</div>' + esc(x[2]) + '</li>').join('') + '</ul>' + (c.cms.length > 5 ? '<button class="more" id="cmm">Показать все (' + c.cms.length + ')</button>' : '') : '<div class="sub">Комментариев ещё нет</div>') + '</div>';
+  let cmH = '<div class="sec"><div class="cm-head"><h2>Комментарии <small id="cm-search-count">' + c.cms.length + '</small></h2><input id="cm-search" type="search" aria-label="Поиск по комментариям кандидата" placeholder="Слово, почта, номер…"></div>' + (c.can ? '<div class="form" style="margin:0 0 8px"><textarea id="cmt" placeholder="Что нового и какой следующий шаг?"></textarea><button class="b main" id="cms">Сохранить</button></div>' : '')
+    + (c.cms.length ? '<ul class="list" id="cml">' + c.cms.map((x, i) => '<li' + (i >= 5 ? ' class="hid"' : '') + '><div class="who">' + esc(x[1]) + ', ' + fmt(x[0]) + '</div>' + '<div class="cm-text">' + esc(x[2]) + '</div></li>').join('') + '</ul>' + (c.cms.length > 5 ? '<button class="more" id="cmm">Показать все (' + c.cms.length + ')</button>' : '') : '<div class="sub">Комментариев ещё нет</div>') + '<div class="sub hid" id="cm-search-empty" role="status">Ничего не найдено</div></div>';
   // этап
   const A = [];
   if (c.can && c.t) {
@@ -692,6 +693,19 @@ async function showCard(k, keep) {                          // keep — обно
   app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c); observeBudgetCard(c);
+}
+function matchesComment(comment, query) {
+  const q = String(query || '').trim().toLocaleLowerCase('ru-RU'); if (!q) return true;
+  const text = String(comment[1] || '') + ' ' + String(comment[2] || '') + ' ' + fmt(comment[0]);
+  if (text.toLocaleLowerCase('ru-RU').includes(q)) return true;
+  if (/^\+?[\d\s().-]+$/.test(q)) { const digits = q.replace(/\D/g, ''); if (digits.length >= 3) return (String(comment[2] || '').match(/\+?\d[\d\s().-]*\d/g) || []).some(phone => phone.replace(/\D/g, '').includes(digits)); }
+  return false;
+}
+function highlightComment(value, query) {
+  const text = String(value || ''), q = String(query || '').trim(); if (!q) return esc(text);
+  const lower = text.toLocaleLowerCase('ru-RU'), needle = q.toLocaleLowerCase('ru-RU'); let at = 0, out = '', i;
+  while ((i = lower.indexOf(needle, at)) >= 0) { out += esc(text.slice(at, i)) + '<mark class="cm-match">' + esc(text.slice(i, i + q.length)) + '</mark>'; at = i + q.length; }
+  return out + esc(text.slice(at));
 }
 async function flightDocumentNudge(c) {
   hap('error');
@@ -735,7 +749,17 @@ function bindCard(c) {
     if (f) { try { x = await shrink(f); } catch (e) { return toast('Не смог прочитать фото'); } }
     run(b, 'spend', { sum: sum, cat: $('#sc').value, cm: $('#scm').value, img: x && x.b, mime: x && x.mime }, d => d.big ? 'Отправлено руководителю на одобрение' : 'Трата записана'); });
   on('cms', b => { const t = $('#cmt').value.trim(); if (t.length < 3) return toast('Напишите хотя бы пару слов'); run(b, 'comment', { text: t }, 'Сохранено · подсказки, если есть, придут в бот'); });
-  on('cmm', b => { $('#cml').querySelectorAll('li.hid').forEach(li => li.classList.remove('hid')); b.remove(); });
+  const commentSearch = $('#cm-search'); let allComments = false;
+  const filterComments = () => {
+    const query = commentSearch.value.trim(); let found = 0;
+    const rows = $('#cml') ? Array.from($('#cml').children) : [];
+    rows.forEach((li, i) => { const matches = matchesComment(c.cms[i], query); if (matches) found++; li.classList.toggle('hid', !matches || (!query && !allComments && i >= 5)); const body = li.querySelector('.cm-text'); if (body) body.innerHTML = highlightComment(c.cms[i][2], query); });
+    $('#cm-search-count').textContent = query ? found + ' / ' + c.cms.length : c.cms.length;
+    $('#cm-search-empty').classList.toggle('hid', !query || found > 0);
+    const more = $('#cmm'); if (more) more.classList.toggle('hid', !!query || allComments);
+  };
+  if (commentSearch) { commentSearch.oninput = filterComments; commentSearch.onsearch = filterComments; filterComments(); }
+  on('cmm', () => { allComments = true; filterComments(); });
   on('asks', b => { const t = $('#askt').value.trim(); if (t.length < 3) return toast('Напишите вопрос'); run(b, 'ask', { text: t }, 'Вопрос отправлен команде'); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = async () => {
     const s = b.dataset.s;
