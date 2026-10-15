@@ -350,7 +350,7 @@ function render() {
   if (S.tab === 'focus' && focusAllowed()) return showFocus();
   if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
   if (S.tab === 'board') return showBoard();
-  if (S.tab === 'funnel') return ME.boss ? showAnalytics('funnel') : showView('f', 'Воронка');
+  if (S.tab === 'funnel') return analyticsAllowed() ? showAnalytics('funnel') : showView('f', 'Воронка');
   if (S.tab === 'rep') return showRep();
 }
 
@@ -374,8 +374,8 @@ function matches(c) {
   if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
   if (f === 'fl' && !(c.fl || []).length) return false;
   if (f === 'road' && c.st !== 'В пути') return false;
-  if (f === 'pass' && c.pass !== 'Да') return false;
-  if (f === 'nopass' && c.pass === 'Да') return false;
+  if (S.pf === 'pass' && c.pass !== 'Да') return false;
+  if (S.pf === 'nopass' && c.pass === 'Да') return false;
   if (f === 'fly' && !c.fly) return false;
   if (S.q) { const q = S.q.toLowerCase(), d = q.replace(/\D/g, '');
     if (!(c.n.toLowerCase().includes(q) || (d.length >= 3 && c.ph.replace(/\D/g, '').includes(d)))) return false; }
@@ -387,28 +387,29 @@ async function showList(reload) {
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
-  const cnt = k => { const o = S.f; S.f = k; const n = LIST.filter(matches).length; S.f = o; return n; };
+  const isOn = k => ['pass','nopass'].includes(k) ? S.pf === k : k === 'a' ? S.f === 'a' && !S.pf : S.f === k;
+  const cnt = k => { const f = S.f, pf = S.pf; if (['pass','nopass'].includes(k)) S.pf = k; else { S.f = k; if (k === 'a') S.pf = ''; } const n = LIST.filter(matches).length; S.f = f; S.pf = pf; return n; };
   const cmCount = k => { const o = S.cm; S.cm = k; const n = LIST.filter(matches).length; S.cm = o; return n; };
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
   const stages = [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']];
   const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев']];
-  const activeFilters = Number(S.f !== 'a') + Number(S.show !== 'act') + Number(!!S.cm);
-  const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
+  const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm);
+  const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
   app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
     + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
-    + '<div class="chips">' + F.map(x => '<button class="chip' + (S.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
+    + '<div class="chips">' + F.map(x => '<button class="chip' + (isOn(x[0]) ? ' on' : '') + '" aria-pressed="' + isOn(x[0]) + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
     + '<div class="wrap">' + '<div id="team-issues">' + teamIssuesHtml() + '</div><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
-  $('#filter-reset').onclick = () => { S.f = 'a'; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
+  $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
   const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f)); $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length; bindItems(); bindQuickComments(); farBtn(); };
   farBtn(); waBox();
-  app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.f = b.dataset.f; showList(); });
+  app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const f = b.dataset.f; if (['pass','nopass'].includes(f)) S.pf = S.pf === f ? '' : f; else { S.f = S.f === f ? 'a' : f; if (f === 'a') S.pf = ''; } showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
   app.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { S.cm = S.cm === b.dataset.cm ? '' : b.dataset.cm; showList(); });
   bindItems(); bindQuickComments();
@@ -839,7 +840,8 @@ async function showView(v, title, every, off) {
   await load(true);
   if (every) boardTimer = setInterval(() => { if (!document.hidden) load(false); }, every);
 }
-function showRep(inPlace) { return ME.boss && !S.legacyRep ? showAnalytics('rep') : showLegacyRep(inPlace); }
+function analyticsAllowed() { return !!ME && (ME.boss || ME.u === 'saygoida'); }
+function showRep(inPlace) { return analyticsAllowed() && !S.legacyRep ? showAnalytics('rep') : showLegacyRep(inPlace); }
 async function showLegacyRep(inPlace) {
   const R = [['s', 'Сводка'], ['am', 'Утро'], ['m', 'Траты'], ['l', 'Потери'], ['k', 'Страны'], ['j', 'Журнал']];
   S.rv = S.rv || 's'; S.off = S.off || 0;
@@ -925,7 +927,7 @@ function analyticsBody(D,kind) {
   return '<div class="dash-kpis dash-wide">'+dashKpi('Отправлены за период',metrics.departures,'')+dashKpi('Доехали за период',metrics.arrivals,'good')+dashKpi('Все расходы',money(F.total),'gold','С инфраструктурой')+dashKpi('Полная стоимость доезда',financeCost(F.total,F.arrivals),'',F.arrivals?'Все расходы ÷ доезды':'Доездов за период пока нет')+'</div>'+teamResults+dashCard('Результативность сотрудников','Все команды · действия за выбранный период',dashPeopleHtml(D.people),'dash-wide')+'<details class="dash-card dash-method dash-wide"><summary>Как читать отчёт</summary>Здесь считаются результаты периода, включая кандидатов из прошлых месяцев. Выезды, доезды и архив — уникальные кандидаты по каждому событию. Персональные показатели относятся к автору записи; звонки и WA здесь нужны для сравнения сотрудников за период, а соревнование текущей смены остаётся на табло.<br><br>Исторические записи без подтверждённого ника остаются в журнале и общих итогах, но не участвуют в рейтингах сотрудников. Общие расходы делятся поровну между назначенными кандидатами с учтёнными прямыми тратами, кроме архива. Потери уже входят в прямые расходы и не прибавляются повторно. Детали расходов — во вкладке «Стоимость» и карточках кандидатов.</details>';
 }
 async function showAnalytics(kind) {
-  if(!ME.boss)return kind==='funnel'?showView('f','Воронка'):showLegacyRep();
+  if(!analyticsAllowed())return kind==='funnel'?showView('f','Воронка'):showLegacyRep();
   S.dr=['summary','finance'].includes(S.dr)?S.dr:'summary';S.dp=S.dp||'month';S.doff=S.doff||0;S.dt=ME.teamList.some(t=>t.t===S.dt)?S.dt:'';
   const token=++DASH_REQUEST,route=kind==='funnel'?'funnel':'rep';
   app.innerHTML='<div class="top dash-top"><div class="dash-kicker">Панель руководителя</div><div class="dash-head"><h1 class="h1">'+(kind==='funnel'?'Воронка':'Отчёты')+'</h1><button class="ghost" id="dash-refresh">Обновить</button></div><div class="dash-meta">'+(kind==='funnel'?'Конверсия, задержки и причины потерь':'Результативность за период и полная стоимость')+'</div><div class="dash-controls"><select id="dash-period" aria-label="Период">'+[['month','По месяцам'],['7','Последние 7 дней'],['30','Последние 30 дней']].map(x=>'<option value="'+x[0]+'"'+(S.dp===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select><select id="dash-team" aria-label="Команда"><option value="">Все команды</option>'+ME.teamList.map(t=>'<option value="'+esc(t.t)+'"'+(S.dt===t.t?' selected':'')+'>'+esc(t.e+' '+t.t)+'</option>').join('')+'</select></div>'+(S.dp==='month'?'<div class="dash-month"><button class="ghost" id="dash-prev">← Раньше</button><span id="dash-label">Загрузка…</span><button class="ghost" id="dash-next"'+(!S.doff?' disabled':'')+'>Позже →</button></div>':'<div class="dash-meta" id="dash-label"></div>')+(kind==='rep'?'<div class="chips report-tabs">'+[['summary','Результаты'],['finance','Стоимость']].map(x=>'<button class="chip'+((S.dr||'summary')===x[0]?' on':'')+'" data-dr="'+x[0]+'">'+x[1]+'</button>').join('')+'</div><button class="ghost" id="dash-details" style="margin-top:8px">Подробные отчёты и журнал →</button>':'')+'</div><div class="dash" id="dash-content"><div class="dash-card dash-wide dash-empty"><span class="spin"></span> Считаю результаты…</div></div>';
