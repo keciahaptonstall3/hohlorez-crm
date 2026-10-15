@@ -800,7 +800,8 @@ function bindCard(c) {
   app.querySelectorAll('[data-delete-file]').forEach(b => b.onclick = async () => {
     if (await confirmP('Удалить вложение «' + b.dataset.fileType + '» из карточки? Если это последний файл этого документа, отметка о его наличии снимется.')) await run(b, 'deletefile', {file:b.dataset.deleteFile}, 'Вложение удалено');
   });
-  on('flys', async b => { if (!c.identityUploaded || (c.flightMissing || []).length) { await flightDocumentNudge(c); return; } const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
+  const requireFlightComment = () => { if (c.cms.some(cm => String(cm[2] || '').trim())) return true; toast('Сначала добавьте хотя бы один комментарий кандидату'); const field = $('#cmt'); if (field) { field.scrollIntoView({block:'center'}); field.focus(); } return false; };
+  on('flys', async b => { if (!requireFlightComment()) return; if (!c.identityUploaded || (c.flightMissing || []).length) { await flightDocumentNudge(c); return; } const v = $('#fly').value; if (!v) return toast('Выберите дату и время'); const m = v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);
     run(b, 'fly', { ts: Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) - MSK }, 'Вылет записан'); });
   on('flyx', async b => { if (await confirmP('Удалить дату вылета?')) run(b, 'fly', { ts: 0 }, 'Дата удалена'); });
   on('sadd', async b => { const sum = $('#ss').value, f = $('#sck').files[0]; let x = null;
@@ -822,6 +823,7 @@ function bindCard(c) {
   on('asks', b => { const t = $('#askt').value.trim(); if (t.length < 3) return toast('Напишите вопрос'); run(b, 'ask', { text: t }, 'Вопрос отправлен команде'); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = async () => {
     const s = b.dataset.s;
+    if (s === 't' && !requireFlightComment()) return;
     if (s === 'z') { const id = await popup('В архив', 'Причина?', ME.arch.map((x, i) => ({ id: 'z' + i, type: i === 0 ? 'destructive' : 'default', text: x })).concat([{ type: 'cancel' }]));
       if (id && /^z\d$/.test(id)) run(b, 'stage', { s: id }, 'В архиве'); return; }
     if (s === 'g') { const id = await popup('Передать', 'Какой команде?', ME.teamList.map((t, i) => ({ id: 'G' + i, type: 'default', text: t.e + ' ' + t.t })).filter(x => ME.teamList[+x.id.slice(1)].t !== c.t).concat([{ type: 'cancel' }]));
