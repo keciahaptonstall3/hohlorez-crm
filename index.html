@@ -722,7 +722,7 @@ async function showCard(k, keep) {                          // keep — обно
   // вылет
   const fv = c.fly ? new Date(c.fly + MSK).toISOString().slice(0, 16) : '';
   let flyH = '<div class="sec"><h2>Вылет <small>по Москве</small></h2><div class="' + (c.fly ? 'flyv' : 'sub') + '">' + (c.fly ? fmt(c.fly, 'dy') + ', ' + fmt(c.fly).slice(6) : 'Дата не назначена') + '</div>'
-    + (c.can ? '<div class="form"><div class="sub">' + (c.fly ? 'Изменить дату и время' : 'Нажмите на поле, чтобы выбрать дату и время') + '</div><input type="datetime-local" id="fly" value="' + fv + '"><div class="two"><button class="b main" id="flys">Сохранить</button><button class="b bad" id="flyx"' + (c.fly ? '' : ' disabled') + '>Удалить</button></div><div class="sub">Бот напомнит команде за сутки и утром в день вылета.</div></div>' : '') + '</div>';
+    + (c.can && !ME.taker ? '<div class="form"><div class="sub">' + (c.fly ? 'Изменить дату и время' : 'Нажмите на поле, чтобы выбрать дату и время') + '</div><input type="datetime-local" id="fly" value="' + fv + '"><div class="two"><button class="b main" id="flys">Сохранить</button><button class="b bad" id="flyx"' + (c.fly ? '' : ' disabled') + '>Удалить</button></div><div class="sub">Бот напомнит команде за сутки и утром в день вылета.</div></div>' : '') + '</div>';
   // траты
   let spH = '<div class="sec"><h2>Траты <small>лимит ' + money(ME.limit) + '</small></h2><div class="meter"><b>' + money(c.ok) + '</b>' + (c.wait ? '<span class="sub">ждут одобрения ' + money(c.wait) + '</span>' : '') + '</div>'
     + '<div class="bar"><span class="' + barCls + '" style="width:' + pct + '%"></span></div>'
@@ -735,8 +735,8 @@ async function showCard(k, keep) {                          // keep — обно
   // этап
   const A = [];
   if (c.can && c.t) {
-    if (c.st === 'В работе') A.push(['t', 'Вылетел — в пути', 'main']);
-    if (c.st === 'В пути') A.push(['w', 'Вернуть в работу', '']);
+    if (c.st === 'В работе' && !ME.taker) A.push(['t', 'Вылетел — в пути', 'main']);
+    if ((ME.boss || ['saygoida','contractrussia2'].includes(ME.u)) && (c.st === 'В пути' || c.st === 'Архив' || (c.st === 'В работе' && c.fly))) A.push(['back', '↩️ Предыдущий этап', '']);
     if (c.st === 'В пути' && ME.boss) A.push(['d', 'Доехал', 'arr']);
     if (c.st !== 'Архив' && c.st !== 'Доехал') A.push(['z', 'В архив', 'bad']);
   }
@@ -827,6 +827,7 @@ function bindCard(c) {
     if (s === 'g') { const id = await popup('Передать', 'Какой команде?', ME.teamList.map((t, i) => ({ id: 'G' + i, type: 'default', text: t.e + ' ' + t.t })).filter(x => ME.teamList[+x.id.slice(1)].t !== c.t).concat([{ type: 'cancel' }]));
       if (id && /^G\d$/.test(id)) run(b, 'stage', { s: id }, 'Передан'); return; }
     if (s === 'd' && !(await confirmP('Подтвердить, что ' + c.n + ' доехал? В чаты уйдёт поздравление.'))) return;
+    if (s === 'back' && !(await confirmP('Вернуть ' + c.n + ' на предыдущий этап? Если сейчас этап «Вылет», дата вылета будет снята.'))) return;
     run(b, 'stage', { s: s }, s === 't' ? 'Теперь «В пути»' : s === 'd' ? '🎉 Доехал!' : 'Готово');
   });
 }
