@@ -382,6 +382,7 @@ function matches(c) {
   return true;
 }
 async function showList(reload) {
+  if (leoCommentsAllowed() && S.leoQueue) return showLeoQueue(reload);
   if (LIST.length && LDIRTY && !reload) { LDIRTY = false;
     loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
@@ -402,7 +403,8 @@ async function showList(reload) {
     + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
-    + '<div class="wrap">' + '<div id="team-issues">' + teamIssuesHtml() + '</div><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+    + '<div class="wrap">' + (leoCommentsAllowed() ? '<div class="sec"><button type="button" class="b main" id="leo-next" style="width:100%">Дать кандидата →</button><div class="sub" style="margin-top:8px">Нужно обновить: ' + leoCommentQueue().length + ' · сначала без комментариев, затем самые давние</div></div>' : '') + '<div id="team-issues">' + teamIssuesHtml() + '</div><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+  if ($('#leo-next')) $('#leo-next').onclick = () => { S.leoQueue = true; showLeoQueue(); window.scrollTo(0, 0); };
   $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
   $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
@@ -993,6 +995,22 @@ function bindAnalyticsCandidates(){app.querySelectorAll('[data-dcandidate]').for
 
 // Комментарии: 24 часа, любой автор, вопросы руководителя обрабатываются отдельно.
 let CM_PICK = '', CM_OPEN = '', CM_PLACE = '', CM_BUSY = '', CM_DRAFTS = {}, CM_PULSE = false;
+function leoCommentsAllowed() { return !!ME && ME.u === 'saygoida'; }
+function leoCommentQueue() {
+  if (!leoCommentsAllowed()) return [];
+  const has = c => !!(c.cm && String(c.cm[2] || '').trim());
+  return LIST.filter(c => activeCandidate(c) && canComment(c) && ME.teams.includes(c.t) && !freshComment(c))
+    .sort((a,b) => Number(has(a)) - Number(has(b)) || (has(a) ? Number(a.cm[0]) - Number(b.cm[0]) : Number(b.days || 0) - Number(a.days || 0)) || String(a.k).localeCompare(String(b.k)));
+}
+async function showLeoQueue(reload) {
+  if (!leoCommentsAllowed() || !S.leoQueue || S.tab !== 'list' || stack.length) return;
+  if (!LIST.length || reload || LDIRTY) { LDIRTY = false; try { await loadList(!!reload); } catch(e) { toast(e.message); return; } }
+  if (!S.leoQueue || S.tab !== 'list' || stack.length) return;
+  const pending = leoCommentQueue(), c = pending[0];
+  app.innerHTML = '<div class="top list-top"><div class="toprow"><button class="ghost" id="leo-queue-back">← К списку</button><span class="sub">Осталось: ' + pending.length + '</span></div><h1 class="h1" style="margin-top:12px">Дать кандидата</h1><div class="sub">Ваша команда · сначала без комментариев</div></div><div class="wrap">' + (c ? '<div class="sec"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><div class="sub" style="margin-top:6px">' + esc(c.t) + ' · ' + esc(c.st) + '</div><div class="warn" style="margin-top:12px">' + cmReason(c) + '</div>' + (c.cm ? '<div class="cm" style="margin:12px 0"><em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0]) + ':</em> ' + esc(c.cm[2]) + '</div>' : '') + '<div class="acts" style="margin-top:12px"><button class="b" type="button" data-leo-wa="' + esc(c.ph.replace(/\D/g, '')) + '"' + (c.ph.replace(/\D/g, '') ? '' : ' disabled') + '>WhatsApp ↗</button></div>' + cmEditor(c, 'queue') + '</div>' : '<div class="sec team-win"><h2>✅ Всё разобрано</h2><div class="sub">У всех активных кандидатов вашей команды свежие комментарии.</div></div>') + '</div>';
+  $('#leo-queue-back').onclick = () => { S.leoQueue = false; showList(); };
+  bindQuickComments();
+}
 const freshComment = (c, now = Date.now()) => !!(c.cm && String(c.cm[2] || '').trim() && now - Number(c.cm[0]) < 864e5);
 const activeCandidate = c => c.st === 'В работе' || c.st === 'В пути';
 const ownReminder = c => ME.u !== 'mster_karabas' && (ME.u !== 'wrkinrussia' || c.t === 'Команда 4');
@@ -1021,9 +1039,10 @@ function cmPending() {
 function cmReason(c) { return c.cm ? '🟠 Комментарий старше суток — обновите следующий шаг' : '🔴 Комментариев ещё нет'; }
 function cmEditor(c, place) {
   return '<form class="cm-editor" data-cm-form="' + esc(c.k) + '" data-place="' + place + '"><textarea aria-label="Комментарий по кандидату ' + esc(c.n) + '" placeholder="Что нового и какой следующий шаг?"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + esc(CM_DRAFTS[c.k] || '') + '</textarea>'
-    + '<div class="acts"><button class="b main" type="submit"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + (CM_BUSY === c.k ? '<span class="spin"></span> Сохраняю' : 'Сохранить') + '</button><button class="b" type="button" data-cm-cancel>Отмена</button></div></form>';
+    + '<div class="acts"><button class="b main" type="submit"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + (CM_BUSY === c.k ? '<span class="spin"></span> Сохраняю' : place === 'queue' ? 'Сохранить и следующий →' : 'Сохранить') + '</button><button class="b" type="button" data-cm-cancel' + (CM_BUSY === c.k ? ' disabled' : '') + '>Отмена</button></div></form>';
 }
 function cmReminderHtml() {
+  if (leoCommentsAllowed()) return '';
   const pending = cmPending();
   if (!pending.length) {
     const selected = /^t\d$/.test(S.f) && ME.teamList[+S.f.slice(1)] ? ME.teamList[+S.f.slice(1)].t : '';
@@ -1038,12 +1057,17 @@ function cmReminderHtml() {
       + (pending.length > 1 ? '<button class="b" data-cm-next>Следующий</button>' : '') + '</div>') + '</div>';
 }
 function cmQuickHtml(c) {
+  if (leoCommentsAllowed()) {
+    if (!activeCandidate(c) || !canComment(c) || !ME.teams.includes(c.t)) return '';
+    return '<div class="cm-quick">' + (CM_OPEN === c.k && CM_PLACE === 'row' ? cmEditor(c, 'row') : '<div class="acts"><button type="button" class="b" data-leo-wa="' + esc(c.ph.replace(/\D/g, '')) + '"' + (c.ph.replace(/\D/g, '') ? '' : ' disabled') + '>WhatsApp ↗</button><button type="button" class="b" data-cm-open="' + esc(c.k) + '" data-place="row">✍️ Комментарий</button></div>') + '</div>';
+  }
   if (!activeCandidate(c) || !canComment(c) || !ownReminder(c) || freshComment(c)) return '';
   return '<div class="cm-quick">' + (CM_OPEN === c.k && CM_PLACE === 'row' ? cmEditor(c, 'row') : '<div class="acts"><span class="warn">' + (c.cm ? '🟠 Комментарию больше суток' : '🔴 Нет комментария') + '</span><button class="b" data-cm-open="' + esc(c.k) + '" data-place="row">✍️ ' + (c.cm ? 'Обновить' : 'Написать') + '</button></div>') + '</div>';
 }
 function cmListVisible() { return (S.tab === 'list' || S.tab === 'focus') && !stack.length; }
 function cmRedraw() { if (cmListVisible()) { const y = window.scrollY; S.tab === 'focus' ? showFocus() : showList(); window.scrollTo(0, y); } }
 function bindQuickComments() {
+  app.querySelectorAll('[data-leo-wa]').forEach(b => b.onclick = () => { if (!leoCommentsAllowed() || !b.dataset.leoWa) return; const url = 'https://wa.me/' + b.dataset.leoWa; tg ? tg.openLink(url) : window.open(url, '_blank', 'noopener'); });
   app.querySelectorAll('[data-cm-open]').forEach(b => b.onclick = () => {
     CM_OPEN = b.dataset.cmOpen; CM_PLACE = b.dataset.place; if (CM_PLACE === 'banner') CM_PICK = CM_OPEN;
     cmRedraw(); const form = Array.from(app.querySelectorAll('[data-cm-form]')).find(f => f.dataset.cmForm === CM_OPEN && f.dataset.place === CM_PLACE);
@@ -1053,7 +1077,7 @@ function bindQuickComments() {
   app.querySelectorAll('[data-cm-form]').forEach(form => {
     const key = form.dataset.cmForm, input = form.querySelector('textarea');
     input.oninput = () => { CM_DRAFTS[key] = input.value; };
-    form.querySelector('[data-cm-cancel]').onclick = () => { CM_OPEN = ''; cmRedraw(); };
+    form.querySelector('[data-cm-cancel]').onclick = () => { CM_OPEN = ''; if (form.dataset.place === 'queue') S.leoQueue = false; cmRedraw(); };
     form.onsubmit = async e => {
       e.preventDefault(); if (CM_BUSY) return;
       const text = input.value.trim(); if (text.length < 3) { toast('Напишите хотя бы пару слов'); input.focus(); return; }
