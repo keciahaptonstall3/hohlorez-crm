@@ -298,6 +298,53 @@ input,textarea,select{transition:border-color 160ms ease}
 .arrival-redcarpet .arrival-hero{animation:arrival-run 2s both}.arrival-redcarpet .arrival-prop{animation:arrival-wobble .4s 5}
 @keyframes arrival-portal{0%{transform:scale(0) rotate(0)}60%{transform:scale(1.3) rotate(540deg)}100%{transform:scale(1) rotate(720deg)}}
 .arrival-portal .arrival-prop{left:32%;font-size:75px;top:17px;animation:arrival-portal 2s both}.arrival-portal .arrival-hero{animation:arrival-pop 2.6s both}.arrival-portal .arrival-finish{animation:arrival-stamp .5s 2.5s both}
+
+/* New scenes 11–30, each with its own movement. */
+@keyframes arrival-train{0%{transform:translateX(-180px)}60%{transform:translateX(55px)}72%{transform:translateX(55px) translateY(-4px)}84%{transform:translateX(55px) translateY(2px)}100%{transform:translateX(55px)}}
+.arrival-train .arrival-prop{animation:arrival-train 2.2s both}.arrival-train .arrival-hero{left:58%;animation:arrival-pop 2.9s both}
+@keyframes arrival-boat{0%{transform:translateX(-130px) rotate(-12deg)}35%{transform:translateX(-40px) rotate(12deg)}65%{transform:translateX(20px) rotate(-7deg)}100%{transform:translateX(30px) rotate(0)}}
+.arrival-boat .arrival-prop{animation:arrival-boat 2.7s both}.arrival-boat .arrival-hero{left:57%;animation:arrival-pop 2.9s both}.arrival-boat .arrival-floor{background:#3b9edd;height:7px;border-radius:50%}
+@keyframes arrival-turtle{0%{transform:translateX(-85px)}30%{transform:translateX(-60px) translateY(-4px)}60%{transform:translateX(-25px)}85%{transform:translateX(0) translateY(-4px)}100%{transform:translateX(20px)}}
+.arrival-turtle .arrival-prop{animation:arrival-turtle 3s both}.arrival-turtle .arrival-hero{font-size:35px;left:39%;animation:arrival-turtle 3s both}
+@keyframes arrival-skate{0%{transform:translateX(-150px) rotate(-14deg)}40%{transform:translate(0,-28px) rotate(12deg)}75%{transform:translate(20px,0) rotate(-8deg)}100%{transform:translateX(20px)}}
+.arrival-skate .arrival-prop{left:35%;top:74px;animation:arrival-skate 2.1s both}.arrival-skate .arrival-hero{top:15px;animation:arrival-skate 2.1s both}
+@keyframes arrival-balloon{0%{transform:translate(-65px,-130px) rotate(-15deg)}45%{transform:translate(15px,-55px) rotate(12deg)}75%{transform:translate(-10px,-15px) rotate(-8deg)}100%{transform:none}}
+.arrival-balloon .arrival-prop{left:44%;top:0;animation:arrival-balloon 2.8s both}.arrival-balloon .arrival-hero{top:54px;animation:arrival-balloon 2.8s both}
+@keyframes arrival-magnet{0%,25%{transform:translateX(160px)}55%{transform:translateX(-25px) rotate(-15deg)}75%{transform:translateX(10px) rotate(8deg)}100%{transform:none}}
+.arrival-magnet .arrival-prop{animation:arrival-wobble .35s 5}.arrival-magnet .arrival-hero{animation:arrival-magnet 2.3s both}
+@keyframes arrival-bowl{0%{transform:translateX(-160px) rotate(-360deg)}65%{transform:translateX(50px) rotate(0)}100%{transform:translateX(50px)}}
+@keyframes arrival-pin{0%,60%{transform:none}75%{transform:rotate(40deg) translate(25px,-7px)}100%{transform:rotate(0) translate(30px,0)}}
+.arrival-bowling .arrival-prop{animation:arrival-bowl 2.1s both}.arrival-bowling .arrival-hero{animation:arrival-pin 2.1s both}
+@keyframes arrival-pizza{0%{transform:translateX(-180px) rotate(-40deg)}45%{transform:translate(20px,-24px) rotate(15deg)}75%{transform:translateX(5px) rotate(-8deg)}100%{transform:translateX(15px)}}
+.arrival-pizza .arrival-prop{animation:arrival-pizza 2s both}.arrival-pizza .arrival-hero{left:57%;animation:arrival-pop 2.2s both}.arrival-pizza .arrival-finish{animation:arrival-wobble .35s 2s 3 both}
+@keyframes arrival-robot{0%{transform:translateX(-80px)}20%{transform:translate(-55px,-6px) rotate(-12deg)}40%{transform:translate(-30px,0) rotate(12deg)}60%{transform:translate(0,-6px) rotate(-12deg)}80%{transform:translate(15px,0) rotate(12deg)}100%{transform:translateX(20px)}}
+.arrival-robot .arrival-prop{animation:arrival-robot 2s steps(6,end) both}.arrival-robot .arrival-hero{left:58%;animation:arrival-pop 2.5s both}
+@keyframes arrival-compass{0%{transform:rotate(-180deg)}25%{transform:rotate(135deg)}55%{transform:rotate(-60deg)}80%{transform:rotate(20deg)}100%{transform:none}}
+.arrival-compass .arrival-prop{animation:arrival-compass 2.5s both}.arrival-compass .arrival-hero{animation:arrival-run 2.6s both}
+@keyframes arrival-lift{0%{transform:translateY(130px);opacity:0}20%{opacity:1}75%{transform:translateY(-8px)}100%{transform:none;opacity:1}}
+.arrival-elevator .arrival-prop{left:27%;font-size:72px;top:15px;animation:arrival-lift 2.2s both}.arrival-elevator .arrival-hero{animation:arrival-lift 2.2s both}
+@keyframes arrival-yoyo{0%{transform:translateY(-120px) rotate(-90deg)}40%{transform:translateY(25px) rotate(180deg)}65%{transform:translateY(-35px) rotate(-45deg)}85%{transform:translateY(10px)}100%{transform:none}}
+.arrival-yoyo .arrival-prop{animation:arrival-yoyo 2.5s both}.arrival-yoyo .arrival-hero{animation:arrival-yoyo 2.5s .15s both}
+@keyframes arrival-catch{0%,20%{transform:translate(150px,80px) rotate(30deg);opacity:0}45%{transform:translate(50px,-45px) rotate(-20deg);opacity:1}75%{transform:translate(-15px,-10px) rotate(10deg)}100%{transform:none;opacity:1}}
+.arrival-fishing .arrival-prop{animation:arrival-wobble .6s 3}.arrival-fishing .arrival-hero{animation:arrival-catch 2.5s both}
+@keyframes arrival-cup{0%{transform:translateY(90px) scale(.3);opacity:0}40%{transform:translateY(-20px) scale(1.25);opacity:1}70%{transform:translateY(6px) scale(.9)}100%{transform:none;opacity:1}}
+.arrival-trophy .arrival-prop{animation:arrival-cup 2s both}.arrival-trophy .arrival-hero{animation:arrival-wobble .4s .8s 4 both}
+@keyframes arrival-umbrella{0%{transform:translate(0,-100px) rotate(-70deg)}50%{transform:translate(20px,-15px) rotate(20deg)}100%{transform:translateX(15px) rotate(-10deg)}}
+.arrival-umbrella .arrival-prop{top:6px;left:33%;animation:arrival-umbrella 2.4s both}.arrival-umbrella .arrival-hero{top:54px;animation:arrival-run 2.4s both}
+@keyframes arrival-drone{0%{transform:translate(-150px,-55px)}40%{transform:translate(30px,-25px)}60%{transform:translate(15px,-35px)}80%{transform:translate(25px,-22px)}100%{transform:translate(20px,-30px)}}
+@keyframes arrival-cargo{0%,40%{transform:translate(-140px,-65px);opacity:0}55%{transform:translate(0,-25px);opacity:1}80%{transform:translateY(5px)}100%{transform:none;opacity:1}}
+.arrival-drone .arrival-prop{animation:arrival-drone 2.6s both}.arrival-drone .arrival-hero{top:60px;animation:arrival-cargo 2.6s both}
+@keyframes arrival-cart{0%{transform:translateX(-170px) rotate(-10deg)}55%{transform:translateX(30px) rotate(-10deg)}70%{transform:translateX(20px) rotate(12deg)}90%{transform:translateX(20px) rotate(-5deg)}100%{transform:translateX(20px)}}
+.arrival-cart .arrival-prop{left:30%;top:60px;animation:arrival-cart 2.5s both}.arrival-cart .arrival-hero{top:8px;animation:arrival-cart 2.5s both}
+@keyframes arrival-bounce{0%{transform:translate(-110px,-60px) scale(1)}30%{transform:translate(-40px,35px) scale(1.15,.7)}55%{transform:translate(10px,-40px) scale(.9,1.1)}75%{transform:translateY(20px) scale(1.1,.85)}100%{transform:none}}
+.arrival-trampoline .arrival-prop{left:38%;top:83px;transform:scale(1.6,.25)}.arrival-trampoline .arrival-hero{top:25px;animation:arrival-bounce 2.7s both}
+@keyframes arrival-ufo{0%{transform:translate(150px,-100px) rotate(25deg)}40%{transform:translate(20px,-35px) rotate(-10deg)}65%{transform:translate(-10px,-25px) rotate(6deg)}100%{transform:translate(10px,-25px)}}
+@keyframes arrival-beam{0%,45%{opacity:0;transform:translateY(-55px) scale(.3)}75%{opacity:.5;transform:translateY(10px) scale(1.15)}100%{opacity:1;transform:none}}
+.arrival-ufo .arrival-prop{left:32%;top:15px;animation:arrival-ufo 2.6s both}.arrival-ufo .arrival-hero{top:57px;animation:arrival-beam 2.6s both}
+@keyframes arrival-camera{0%{transform:scale(.6) rotate(-15deg)}40%{transform:scale(1.2) rotate(10deg)}65%{transform:scale(1) rotate(-5deg)}100%{transform:none}}
+@keyframes arrival-pose{0%{transform:translateX(130px) rotate(-20deg)}50%{transform:rotate(20deg)}75%{transform:rotate(-12deg) scale(1.1)}100%{transform:none}}
+.arrival-photo .arrival-prop{animation:arrival-camera 2.2s both}.arrival-photo .arrival-hero{animation:arrival-pose 2.2s both}
+
 @media(prefers-reduced-motion:reduce){.arrival-scene span,.arrival-card{animation:none!important}.arrival-floor{opacity:.5}}
 
 </style>
@@ -1276,7 +1323,27 @@ const ARRIVAL_SCENES = [
   ['parachute','🪂','🧍','📍','Приземлился точно!','Кандидат на месте. Парашют можно складывать.'],
   ['battery','🔋','🧟','☕','Заряд: доехал','Осталось найти розетку и кофе.'],
   ['redcarpet','📸','🕺','⭐','Звезда прибыла!','Красная дорожка экономкласса уже расстелена.'],
-  ['portal','🌀','🧍','🧳','Телепортация завершена','Загрузка 100%. Чемодан материализовался следом.']
+  ['portal','🌀','🧍','🧳','Телепортация завершена','Загрузка 100%. Чемодан материализовался следом.'],
+  ['train','🚂','🧍','🚉','Поезд прибыл!','Следующая остановка — наконец-то отдохнуть.'],
+  ['boat','⛵','🧍','⚓','Пришвартовался','Плавали — знаем. Теперь можно на берег.'],
+  ['turtle','🐢','🧳','🏁','Тише едешь — доедешь','Черепаха лично подтвердила эту стратегию.'],
+  ['skate','🛹','🕺','✅','Прикатил красиво','Оценка за доезд — десять из десяти.'],
+  ['balloon','🎈','🧍','📍','Долетел на позитиве','Шарик сдулся. Энтузиазм держится.'],
+  ['magnet','🧲','🧍','🏠','Притянули к результату','Командная работа сильнее магнита.'],
+  ['bowling','🎳','🧍','💯','Страйк!','Маршрут закрыт одним точным попаданием.'],
+  ['pizza','🍕','🧍','🔔','Доставка горячая!','Доехал быстрее, чем остыла воображаемая пицца.'],
+  ['robot','🤖','🧍','✅','Миссия выполнена','Бип-буп. Доезд подтверждён. Обнимашки разрешены.'],
+  ['compass','🧭','🚶','📍','Навигатор выдохнул','Вы прибыли. Перестраивать маршрут больше не надо.'],
+  ['elevator','🛗','🧍','🔝','Этаж: результат','Двери открываются. Выход к успеху справа.'],
+  ['yoyo','🪀','🧍','🏁','Без обратного отскока','Покачало по дороге, зато финиш уверенный.'],
+  ['fishing','🎣','🧍','✅','Есть доезд!','Команда вытянула маршрут. Улов — хороший результат.'],
+  ['trophy','🏆','🕺','✨','Кубок за доезд','Церемония короткая. Радость настоящая.'],
+  ['umbrella','☂️','🧍','☀️','Прибыл при любой погоде','Дорожные тучи остались позади.'],
+  ['drone','🚁','🧳','📦','Бережная доставка','Груз ценный. Настроение — на высоте.'],
+  ['cart','🛒','🕺','🏁','Прикатили к финишу','В корзине: один доезд. Бесценно.'],
+  ['trampoline','🟣','🕺','⭐','Прыг — и на месте!','Главное — приземлиться в нужном городе.'],
+  ['ufo','🛸','🧍','🌍','Землянин доставлен','Инопланетяне просят поставить пять звёзд.'],
+  ['photo','📸','🕺','🖼️','Доезд в кадре','Улыбаемся! Этот маршрут уже в альбоме побед.']
 ];
 let ARRIVAL_TIMER = null, ARRIVAL_BUSY = false;
 const arrivalVariant = key => {
