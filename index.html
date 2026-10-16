@@ -812,7 +812,8 @@ async function showCard(k, keep) {                          // keep — обно
     + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '')
     + '<div class="stage' + (c.st === 'Доехал' ? ' arr' : c.st === 'Архив' ? ' arch' : '') + '">' + esc(c.st) + '</div></div>'
     + '<div class="sec">' + tripHtml(c, true) + '<div class="acts" style="margin-top:14px"><button class="b" id="cp">' + esc(c.ph || 'нет номера') + '</button>' + (dg ? '<button class="b main" id="wa">WhatsApp</button>' : '') + '</div>'
-    + (c.callRequest ? '<details id="call-request" style="margin-top:14px"><summary class="b" style="text-align:center;cursor:pointer">📞 Отправить на прозвон</summary><div class="form"><div class="sub">Получатель: ' + esc(c.callRequest.name) + '</div><label class="sub" for="call-request-text">Комментарий к просьбе · необязательно</label><textarea id="call-request-text" maxlength="1500" placeholder="Что уточнить у кандидата?"></textarea><button class="b main" id="call-request-send">Отправить просьбу</button><div class="sub" id="call-request-status" role="status" aria-live="polite"></div></div></details>' : '') + '</div>';
+    + (ME.u === 'contractrussia2' && c.callRequest ? '<details id="call-request" style="margin-top:14px"><summary class="b" style="text-align:center;cursor:pointer">📞 Отправить на прозвон</summary><div class="form"><label class="sub" for="call-request-to">Кому отправить</label><select id="call-request-to">' + (c.callRequest.callers || []).map(p => '<option value="' + esc(p.id) + '"' + (p.id === c.callRequest.to ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select><label class="sub" for="call-request-text">Комментарий к просьбе · необязательно</label><textarea id="call-request-text" maxlength="1500" placeholder="Что уточнить у кандидата?"></textarea><button class="b main" id="call-request-send">Отправить просьбу</button><div class="sub" id="call-request-status" role="status" aria-live="polite"></div></div></details>' : '') + '</div>';
+  if (ME.u === 'contractrussia2' && (c.completedCalls || []).length) h += '<details class="sec" id="completed-calls"><summary style="font-weight:700;cursor:pointer">Выполненные обращения · ' + c.completedCalls.length + '</summary><ul class="list" style="margin-top:12px">' + c.completedCalls.map(x => '<li><div class="who">✅ ' + esc(x.caller) + ' · ' + fmt(x.at) + '</div>' + (x.note ? '<div class="sub" style="margin-top:6px">Просьба: ' + esc(x.note) + '</div>' : '') + '<div style="margin-top:6px;white-space:pre-wrap">' + esc(x.result) + '</div></li>').join('') + '</ul></details>';
   let dat = '<div class="sec quiet"><h2>Данные <small>строка ' + c.row + '</small></h2><dl class="kv"><dt>Страна</dt><dd>' + esc(c.c || '—') + '</dd><dt>Паспорт</dt><dd>' + esc(c.pass || '—') + '</dd>'
     + (c.ph2 ? '<dt>Доп. номер</dt><dd>' + esc(c.ph2) + '</dd>' : '') + '<dt>WhatsApp</dt><dd>' + esc(c.wa || '—') + '</dd>'
     + '<dt>Заявка</dt><dd>' + fmt(c.created) + ', звонков ' + c.tries + (c.res ? '. ' + esc(c.res) : '') + '</dd>' + (c.src ? '<dt>Источник</dt><dd>' + esc(c.src) + '</dd>' : '') + '</dl></div>';
@@ -920,21 +921,22 @@ function bindCard(c) {
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
-  if (c.callRequest) {
-    const send = $('#call-request-send'), field = $('#call-request-text'), status = $('#call-request-status');
+  if (ME.u === 'contractrussia2' && c.callRequest) {
+    const send = $('#call-request-send'), field = $('#call-request-text'), status = $('#call-request-status'), recipient = $('#call-request-to');
     let busy = false, until = c.callRequest.until || 0, requestId = '';
     const cooldown = () => { const wait = until - Date.now(); send.disabled = busy || wait > 0; send.textContent = wait > 0 ? 'Уже отправлено · повтор через ' + Math.ceil(wait / 60e3) + ' мин.' : 'Отправить просьбу'; };
     cooldown(); $('#call-request').ontoggle = cooldown;
     field.oninput = () => { requestId = ''; };
+    recipient.onchange = () => { requestId = ''; };
     send.onclick = async () => {
       if (busy || until > Date.now()) return cooldown();
-      busy = true; cooldown(); send.textContent = 'Отправляю…'; field.disabled = true;
+      busy = true; cooldown(); send.textContent = 'Отправляю…'; field.disabled = true; recipient.disabled = true;
       if (!requestId) requestId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
       try {
-        const d = await api('callrequest', {k:k, text:field.value.trim(), id:requestId}); until = d.until; c.callRequest = d;
+        const d = await api('callrequest', {k:k, to:recipient.value, text:field.value.trim(), id:requestId}); until = d.until; c.callRequest = d;
         field.value = ''; requestId = ''; status.textContent = '✅ Просьба отправлена: ' + d.name; hap();
       } catch (e) { status.textContent = e.message; hap('error'); }
-      finally { busy = false; field.disabled = false; cooldown(); }
+      finally { busy = false; field.disabled = false; recipient.disabled = false; cooldown(); }
     };
   }
   on('relatives-open', () => { stack.push({kind:'relatives', k:k, n:c.n}); render(); });
