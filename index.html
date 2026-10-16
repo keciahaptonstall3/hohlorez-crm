@@ -426,7 +426,7 @@ function render() {
   nav(); window.scrollTo(0, 0);
   if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
   const top = stack[stack.length - 1];
-  if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'add' ? showAdd() : null;
+  if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'relatives' ? showRelatives(top) : top.kind === 'add' ? showAdd() : null;
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
   if (S.tab === 'focus' && focusAllowed()) return showFocus();
@@ -827,9 +827,51 @@ async function showCard(k, keep) {                          // keep — обно
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + esc(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
-  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
+  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   if (keep) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c); observeBudgetCard(c);
+}
+async function showRelatives(route) {
+  const active = () => stack[stack.length - 1] === route;
+  app.innerHTML = '<div class="wrap"><div class="empty"><span class="spin"></span></div></div>';
+  let contacts;
+  try { contacts = await api('relatives', {k:route.k}); }
+  catch (e) { if (!active()) return; app.innerHTML = '<div class="wrap"><button class="more" id="rel-back">← К карточке</button><div class="empty">' + esc(e.message) + '</div><button class="b" id="rel-retry">Повторить</button></div>'; $('#rel-back').onclick = back; $('#rel-retry').onclick = () => showRelatives(route); return; }
+  if (!active()) return;
+  let draft = null, busy = false;
+  const draw = () => {
+    app.innerHTML = '<div class="wrap"><button class="more" id="rel-back" style="text-align:left">← К карточке</button><div class="hero"><h1 style="font-size:24px">Контакты родственников</h1><div class="sub">' + esc(route.n) + '</div></div>'
+      + contacts.map((c, i) => '<div class="sec"><h2 style="overflow-wrap:anywhere">' + esc(c.name) + '</h2><div class="sub" style="overflow-wrap:anywhere">' + esc(c.relation) + '</div><div style="margin:14px 0;overflow-wrap:anywhere">' + esc(c.phone) + '</div><div class="two"><button class="b" data-rel-copy="' + i + '">Скопировать номер</button><button class="b" data-rel-edit="' + i + '">Изменить</button></div><button class="more" data-rel-delete="' + i + '" style="font-size:13px">Удалить контакт</button></div>').join('')
+      + (!contacts.length ? '<div class="sec quiet"><div class="sub">Контактов пока нет</div></div>' : '')
+      + (draft ? '<form class="sec form" id="rel-form"><h2>' + (draft.id ? 'Изменить контакт' : 'Новый контакт') + '</h2><label for="rel-name" class="sub">Имя</label><input id="rel-name" maxlength="100" autocomplete="off" required value="' + esc(draft.name) + '"><label for="rel-relation" class="sub">Кем приходится</label><input id="rel-relation" maxlength="80" autocomplete="off" placeholder="Например, мама или брат" required value="' + esc(draft.relation) + '"><label for="rel-phone" class="sub">Телефон с кодом страны</label><input id="rel-phone" type="tel" maxlength="50" autocomplete="off" placeholder="+57…" required value="' + esc(draft.phone) + '"><div class="sub" role="status" id="rel-error" style="color:var(--bad)"></div><div class="two"><button class="b main" type="submit" id="rel-save">Сохранить</button><button class="b" type="button" id="rel-cancel">Отмена</button></div></form>' : '<button class="b" id="rel-add" style="width:100%">+ Добавить контакт</button>') + '</div>';
+    $('#rel-back').onclick = () => { if (!busy) back(); };
+    const add = $('#rel-add'); if (add) add.onclick = () => { if (busy) return; draft = {name:'',relation:'',phone:''}; draw(); $('#rel-name').focus(); };
+    app.querySelectorAll('[data-rel-edit]').forEach(b => b.onclick = () => { if (busy) return; draft = Object.assign({},contacts[Number(b.dataset.relEdit)]); draw(); $('#rel-name').focus(); });
+    app.querySelectorAll('[data-rel-copy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(contacts[Number(b.dataset.relCopy)].phone); toast('Номер скопирован'); hap(); } catch (_) { toast('Не удалось скопировать номер'); } });
+    app.querySelectorAll('[data-rel-delete]').forEach(b => b.onclick = async () => {
+      if (busy || !(await confirmP('Удалить этот контакт родственника?'))) return;
+      if (!active() || busy) return;
+      busy = true; b.disabled = true; const c = contacts[Number(b.dataset.relDelete)];
+      try { await api('relative-delete',{k:route.k,id:c.id,rev:c.rev}); contacts = contacts.filter(x => x.id !== c.id); if (draft && draft.id === c.id) draft = null; if (active()) { draw(); toast('Контакт удалён'); } }
+      catch(e) { if (active()) { b.disabled = false; toast(e.message); } } finally { busy = false; }
+    });
+    const form = $('#rel-form');
+    if (form) {
+      const capture = () => { draft.name = $('#rel-name').value; draft.relation = $('#rel-relation').value; draft.phone = $('#rel-phone').value; };
+      form.oninput = capture;
+      $('#rel-cancel').onclick = () => { if (!busy) { draft = null; draw(); } };
+      form.onsubmit = async e => {
+        e.preventDefault(); if (busy) return; capture();
+        const digits = draft.phone.replace(/\D/g,'');
+        if (!draft.name.trim() || !draft.relation.trim()) { $('#rel-error').textContent = 'Заполните имя и родство'; return; }
+        if (!/^[+\d\s().-]+$/.test(draft.phone) || digits.length < 7 || digits.length > 15) { $('#rel-error').textContent = 'Укажите телефон с кодом страны, от 7 до 15 цифр'; return; }
+        busy = true; form.querySelectorAll('input,button').forEach(el => el.disabled = true); $('#rel-save').textContent = 'Сохраняю…'; $('#rel-error').textContent = '';
+        try { const saved = await api('relative-save',Object.assign({k:route.k},draft)); const i = contacts.findIndex(x => x.id === saved.id); if (i >= 0) contacts[i] = saved; else contacts.push(saved); draft = null; if (active()) { draw(); toast('Контакт сохранён'); hap(); } }
+        catch(e) { if (active()) { $('#rel-error').textContent = e.message; form.querySelectorAll('input,button').forEach(el => el.disabled = false); $('#rel-save').textContent = 'Сохранить'; } } finally { busy = false; }
+      };
+    }
+  };
+  draw();
 }
 function matchesComment(comment, query) {
   const q = String(query || '').trim().toLocaleLowerCase('ru-RU'); if (!q) return true;
@@ -855,6 +897,7 @@ function bindCard(c) {
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  on('relatives-open', () => { stack.push({kind:'relatives', k:k, n:c.n}); render(); });
   const copyVisa = async id => { const input = $(id); if (!input || !input.value) return toast('Сначала заполните поле'); try { await navigator.clipboard.writeText(input.value); hap(); toast('Скопировано'); } catch (_) { input.focus(); input.select(); toast('Поле выделено — выберите «Скопировать»'); } };
   on('visa-copy-email', () => copyVisa('#visa-email'));
   on('visa-copy-password', () => copyVisa('#visa-password'));
