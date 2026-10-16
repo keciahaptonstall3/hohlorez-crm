@@ -421,8 +421,18 @@ function nav() {
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.legacyRep = false; S.tab = b.dataset.t; render(); });
 }
 function back() { stack.pop(); render(); }
+function candidateDefaultTeams() {
+  if (Array.isArray(ME.defaultTeams)) return ME.defaultTeams;
+  return ME.u === 'wrkinrussia' ? ['Команда 4'] : ME.boss ? [] : ME.teams || [];
+}
+function applyCandidateDefaults() {
+  if (!ME || S.defaultUser === ME.u) return;
+  const teams = candidateDefaultTeams(), i = ME.teamList.findIndex(t => t.t === teams[0]);
+  S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = ME.u;
+}
 function render() {
   clearInterval(boardTimer); clearInterval(callTimer);
+  applyCandidateDefaults();
   nav(); window.scrollTo(0, 0);
   if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
   const top = stack[stack.length - 1];
@@ -453,6 +463,7 @@ function matches(c) {
   if (S.cm === 'yes' && !c.teamCm) return false;
   if (S.cm === 'no' && c.teamCm) return false;
   if (f === 'x' && c.t) return false;
+  if (f === 'mine' && !candidateDefaultTeams().includes(c.t)) return false;
   if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
   if (f === 'fl' && !(c.fl || []).length) return false;
   if (f === 'road' && c.st !== 'В пути') return false;
@@ -469,12 +480,13 @@ async function showList(reload) {
     loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
-  const F = [['a', 'Все']].concat(teams.length > 1 ? teams : [], [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
+  const F = [['a', 'Все']].concat(candidateDefaultTeams().length > 1 ? [['mine', 'Мои команды']] : [], teams, [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
   const isOn = k => ['pass','nopass'].includes(k) ? S.pf === k : k === 'a' ? S.f === 'a' && !S.pf : S.f === k;
   const cnt = k => { const f = S.f, pf = S.pf; if (['pass','nopass'].includes(k)) S.pf = k; else { S.f = k; if (k === 'a') S.pf = ''; } const n = LIST.filter(matches).length; S.f = f; S.pf = pf; return n; };
   const cmCount = k => { const o = S.cm; S.cm = k; const n = LIST.filter(matches).length; S.cm = o; return n; };
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
   const stages = [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']];
+  const stageCount = stage => { const old = S.show; S.show = stage; const n = LIST.filter(matches).length; S.show = old; return n; };
   const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев']];
   const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm);
   const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
@@ -482,17 +494,17 @@ async function showList(reload) {
     + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
     + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
     + '<div class="chips">' + F.map(x => '<button class="chip' + (isOn(x[0]) ? ' on' : '') + '" aria-pressed="' + isOn(x[0]) + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
-    + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
+    + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" aria-pressed="' + (S.show === x[0]) + '" data-s="' + x[0] + '">' + x[1] + '<b>' + stageCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
-    + '<div class="wrap">' + (leoCommentsAllowed() ? '<div class="sec"><button type="button" class="b main" id="leo-next" style="width:100%">Дать кандидата →</button><div class="sub" style="margin-top:8px">Нужно обновить: ' + leoCommentQueue().length + ' · сначала без комментариев, затем самые давние</div></div>' : '') + '<div id="team-issues">' + teamIssuesHtml() + '</div><div id="wabox"></div><div id="cm-reminders">' + cmReminderHtml() + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
+    + '<div class="wrap">' + (S.show === 'act' && leoCommentsAllowed() ? '<div class="sec"><button type="button" class="b main" id="leo-next" style="width:100%">Дать кандидата →</button><div class="sub" style="margin-top:8px">Нужно обновить: ' + leoCommentQueue().length + ' · сначала без комментариев, затем самые давние</div></div>' : '') + '<div id="team-issues">' + (S.show === 'act' ? teamIssuesHtml() : '') + '</div><div id="wabox"></div><div id="cm-reminders">' + (S.show === 'act' ? cmReminderHtml() : '') + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   if ($('#leo-next')) $('#leo-next').onclick = () => { S.leoQueue = true; showLeoQueue(); window.scrollTo(0, 0); };
   $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
   $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
   const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f)); $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length; bindItems(); bindQuickComments(); farBtn(); };
-  farBtn(); waBox();
+  farBtn(); if (S.show === 'act') waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const f = b.dataset.f; if (['pass','nopass'].includes(f)) S.pf = S.pf === f ? '' : f; else { S.f = S.f === f ? 'a' : f; if (f === 'a') S.pf = ''; } showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
   app.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { S.cm = S.cm === b.dataset.cm ? '' : b.dataset.cm; showList(); });
@@ -531,9 +543,18 @@ function itemHtml(c) {
     + (activeCandidate(c) && budgetExhausted(c) ? '<div class="warn" style="grid-column:1/-1">🚨 Бюджет: ' + money(c.sp) + ' из ' + money(ME.limit) + '</div>' : '')
     + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
     + tripHtml(c)
-    + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '') + cmQuickHtml(c) + '</div>';
+    + '<div class="cm">' + (c.cm ? '<em>' + esc(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + (ME.boss && c.st === 'Архив' ? '<div style="padding:0 14px 14px"><button class="b" data-restore="' + esc(c.k) + '" style="width:100%">↩️ Вернуть в работу</button></div>' : '') + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '') + cmQuickHtml(c) + '</div>';
 }
-function bindItems() { app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); bindFocus(); }
+function bindItems() {
+  app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); bindFocus();
+  app.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
+    if (b.disabled) return; const c = LIST.find(x => x.k === b.dataset.restore); if (!c) return;
+    if (!(await confirmP('Вернуть ' + c.n + ' из архива в работу?'))) return;
+    b.disabled = true;
+    try { await api('stage',{k:c.k,s:'restore'}); c.st = 'В работе'; c.arch = ''; LDIRTY = true; hap(); toast('Кандидат возвращён в работу'); if (b.isConnected && !stack.length) await showList(true); }
+    catch(e) { b.disabled = false; toast(e.message); }
+  });
+}
 function focusAllowed() { return !!ME && ME.u === 'saygoida'; }
 function focusKeys() { const keys = lsGet('leo-focus'); return Array.isArray(keys) ? keys.filter(k => typeof k === 'string') : []; }
 function focusButton(k) { const yes = focusKeys().includes(k); return '<button type="button" class="focus-toggle" data-focus-key="' + esc(k) + '" aria-pressed="' + yes + '"><span aria-hidden="true">🍆</span>' + (yes ? 'Убрать из Фокуса' : 'В фокус') + '</button>'; }
@@ -818,10 +839,11 @@ async function showCard(k, keep) {                          // keep — обно
   const A = [];
   if (c.can && c.t) {
     if (c.st === 'В работе' && !ME.taker) A.push(['t', 'Вылетел — в пути', 'main']);
-    if ((ME.boss || ['saygoida','contractrussia2'].includes(ME.u)) && (c.st === 'В пути' || c.st === 'Архив' || (c.st === 'В работе' && c.fly))) A.push(['back', '↩️ Предыдущий этап', '']);
+    if ((ME.boss || ['saygoida','contractrussia2'].includes(ME.u)) && (c.st === 'В пути' || (c.st === 'Архив' && !ME.boss) || (c.st === 'В работе' && c.fly))) A.push(['back', '↩️ Предыдущий этап', '']);
     if (c.st === 'В пути' && ME.boss) A.push(['d', 'Доехал', 'arr']);
     if (c.st !== 'Архив' && c.st !== 'Доехал') A.push(['z', 'В архив', 'bad']);
   }
+  if (ME.boss && c.st === 'Архив') A.push(['restore', '↩️ Вернуть в работу', '']);
   if (!c.t && c.st !== 'Архив') ME.teamList.forEach((t, i) => { if (ME.teams.indexOf(t.t) >= 0) A.push(['c' + i, 'Забрать в ' + t.e + ' ' + t.t.toLowerCase(), 'main']); });
   if (ME.boss && c.st !== 'Архив') A.push(['g', 'Передать другой команде', '']);
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
@@ -955,6 +977,7 @@ function bindCard(c) {
       if (id && /^G\d$/.test(id)) run(b, 'stage', { s: id }, 'Передан'); return; }
     if (s === 'd' && !(await confirmP('Подтвердить, что ' + c.n + ' доехал? В чаты уйдёт поздравление.'))) return;
     if (s === 'back' && !(await confirmP('Вернуть ' + c.n + ' на предыдущий этап? Если сейчас этап «Вылет», дата вылета будет снята.'))) return;
+    if (s === 'restore' && !(await confirmP('Вернуть ' + c.n + ' из архива в работу?'))) return;
     run(b, 'stage', { s: s }, s === 't' ? 'Теперь «В пути»' : s === 'd' ? '🎉 Доехал!' : 'Готово');
   });
 }
