@@ -265,6 +265,41 @@ input,textarea,select{transition:border-color 160ms ease}
 .finance-status{display:inline-block;margin:10px 0 5px;padding:4px 8px;border:1px solid var(--line);border-radius:99px;font-size:11px}.finance-status.approved{color:var(--arr)}.finance-status.waiting{color:var(--amber)}.finance-status.rejected{color:var(--bad)}.finance-comment{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.finance-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0}.report-tabs{margin-top:12px}.finance-candidate summary::-webkit-details-marker,.finance-transaction summary::-webkit-details-marker{display:none}
 
 .staff-group h3{font:600 15px/1.4 var(--disp);margin:0 0 12px}.staff-group+.staff-group{border-top:1px solid var(--line);padding-top:20px;margin-top:20px}
+/* Ten small local scenes: no sound, video, downloads, or animation of candidate lists. */
+.arrival-party{background:#07101a66;pointer-events:auto}
+.arrival-card{border-color:var(--arr);background:radial-gradient(ellipse at top,#194039,var(--panel) 70%)}
+.arrival-tag{font-size:10px;letter-spacing:1.3px;color:var(--arr);overflow-wrap:anywhere}
+.arrival-name{display:block;font-size:16px;overflow-wrap:anywhere;margin:0 0 8px}
+.arrival-scene{height:132px;position:relative;overflow:hidden;margin:8px -8px 14px;isolation:isolate}
+.arrival-scene span{position:absolute;display:block;line-height:1.3;z-index:2}
+.arrival-hero{font-size:55px;left:40%;top:35px}
+.arrival-prop{font-size:49px;left:10%;top:42px}
+.arrival-finish{font-size:36px;right:6%;top:53px;animation:arrival-stamp 600ms 1.6s both}
+.arrival-floor{position:absolute;left:6%;right:6%;bottom:16px;height:3px;background:linear-gradient(90deg,transparent,var(--arr),transparent)}
+@keyframes arrival-stamp{from{opacity:0;transform:scale(2.5) rotate(-25deg)}to{opacity:1;transform:none}}
+@keyframes arrival-roll{0%{transform:translateX(-160px) rotate(-12deg)}60%{transform:translateX(30px) rotate(14deg)}80%{transform:translateX(12px) rotate(-6deg)}100%{transform:translateX(18px)}}
+@keyframes arrival-pop{0%,50%{opacity:0;transform:translateY(55px) scale(.3)}75%{opacity:1;transform:translateY(-8px) scale(1.1)}100%{opacity:1;transform:none}}
+.arrival-suitcase .arrival-prop{animation:arrival-roll 1.5s both}.arrival-suitcase .arrival-hero{animation:arrival-pop 2s both}
+@keyframes arrival-taxi{0%{transform:translateX(-150px)}65%{transform:translateX(90px) rotate(6deg)}85%{transform:translateX(80px) rotate(-4deg)}100%{transform:translateX(80px)}}
+.arrival-taxi .arrival-prop{font-size:65px;animation:arrival-taxi 1.7s both}.arrival-taxi .arrival-hero{left:63%;animation:arrival-pop 2.6s both}
+@keyframes arrival-land{0%{transform:translate(60px,-160px) rotate(-40deg)}65%{transform:translate(35px,5px) rotate(-40deg)}80%{transform:translate(35px,-12px) rotate(-40deg)}100%{transform:translate(35px,0) rotate(-40deg)}}
+.arrival-rocket .arrival-prop{animation:arrival-land 2s both}.arrival-rocket .arrival-hero{left:57%;animation:arrival-pop 2.8s both}
+@keyframes arrival-run{0%{transform:translateX(-200px) rotate(-12deg)}65%{transform:translateX(15px) rotate(5deg)}80%{transform:translateX(-4px) rotate(-5deg)}100%{transform:none}}
+.arrival-slippers .arrival-prop{left:50%;animation:arrival-roll 1.2s both}.arrival-slippers .arrival-hero{animation:arrival-run 2.7s both}.arrival-slippers .arrival-finish{animation:arrival-stamp .5s 2.4s both}
+@keyframes arrival-box{0%{transform:rotate(-6deg)}15%{transform:rotate(8deg)}30%{transform:rotate(-9deg)}45%{transform:rotate(6deg)}60%,100%{transform:none}}
+.arrival-cat .arrival-prop{left:36%;top:55px;font-size:67px;animation:arrival-box 2s both}.arrival-cat .arrival-hero{top:15px;animation:arrival-pop 2s both;z-index:1}
+@keyframes arrival-sweep{0%,100%{transform:rotate(-25deg)}50%{transform:rotate(25deg)}}
+.arrival-curling .arrival-prop{left:27%;animation:arrival-sweep .3s 7 alternate}.arrival-curling .arrival-hero{animation:arrival-run 2.4s both}
+@keyframes arrival-float{0%{transform:translate(-35px,-160px) rotate(-15deg)}35%{transform:translate(20px,-75px) rotate(12deg)}70%{transform:translate(-5px,-25px) rotate(-6deg)}100%{transform:none}}
+.arrival-parachute .arrival-prop{left:38%;top:4px;animation:arrival-float 2.3s both}.arrival-parachute .arrival-hero{font-size:36px;top:67px;left:44%;animation:arrival-float 2.3s both}
+@keyframes arrival-wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg) translateY(4px)}75%{transform:rotate(12deg) translateY(4px)}}
+.arrival-battery .arrival-prop{animation:arrival-wobble .6s 3}.arrival-battery .arrival-hero{animation:arrival-run 2.3s both}.arrival-battery .arrival-finish{animation:arrival-stamp .5s 2.3s both}
+.arrival-redcarpet .arrival-floor{height:17px;bottom:10px;background:linear-gradient(90deg,transparent,#d34353,transparent)}
+.arrival-redcarpet .arrival-hero{animation:arrival-run 2s both}.arrival-redcarpet .arrival-prop{animation:arrival-wobble .4s 5}
+@keyframes arrival-portal{0%{transform:scale(0) rotate(0)}60%{transform:scale(1.3) rotate(540deg)}100%{transform:scale(1) rotate(720deg)}}
+.arrival-portal .arrival-prop{left:32%;font-size:75px;top:17px;animation:arrival-portal 2s both}.arrival-portal .arrival-hero{animation:arrival-pop 2.6s both}.arrival-portal .arrival-finish{animation:arrival-stamp .5s 2.5s both}
+@media(prefers-reduced-motion:reduce){.arrival-scene span,.arrival-card{animation:none!important}.arrival-floor{opacity:.5}}
+
 </style>
 </head>
 <body>
@@ -771,7 +806,7 @@ function bindCard(c) {
   bindFocus();
   const k = c.k, again = msg => { if (msg) toast(msg); hap(); LDIRTY = true; showCard(k, true); };
   const run = async (btn, op, a, msg) => { CARDSEC = btn ? btn.closest('.sec') : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
-    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
+    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
   const copyVisa = async id => { const input = $(id); if (!input || !input.value) return toast('Сначала заполните поле'); try { await navigator.clipboard.writeText(input.value); hap(); toast('Скопировано'); } catch (_) { input.focus(); input.select(); toast('Поле выделено — выберите «Скопировать»'); } };
   on('visa-copy-email', () => copyVisa('#visa-email'));
@@ -1099,6 +1134,7 @@ function bindQuickComments() {
 let GOAL_TIMER = null, GOAL_FRESH = false, PARTY_CLOSE = null, PARTY_QUEUE = [];
 const docsComplete = c => !!(ME && candidateDocs(c).length && candidateDocs(c).every(d => (c.docs || []).indexOf(d[0]) >= 0));
 function observeGoals(list) {
+  observeArrivals(list);
   if (!ME || ME.u === 'mster_karabas') return;
   if (ME.u === 'wrkinrussia') list = list.filter(c => c.t === 'Команда 4');
   const now = Date.now(), day = new Date(now + MSK).toISOString().slice(0, 10);
@@ -1113,7 +1149,6 @@ function observeGoals(list) {
     if (!old || !c.t) return;
     if (c.st !== 'Архив' && ready && !old.docs) award('docs:' + c.k + ':' + day, 'Документы собраны! 🍾', c.n + '\n' + c.t + ' закрыла полный комплект документов. Красиво сработали!');
     if (c.st === 'В пути' && old.st !== c.st) award('flight:' + c.k + ':' + day, 'Кандидат в пути! ✈️', c.n + '\nЕщё один важный этап закрыт. Спасибо команде ' + c.t.replace('Команда ', '') + '!');
-    if (c.st === 'Доехал' && old.st !== c.st) award('arrived:' + c.k, 'Доехал! 🥂', c.n + '\nВы довели кандидата до результата. Отличная работа, ' + c.t.toLowerCase() + '!');
   });
   ME.teamList.forEach(t => {
     if (!ME.boss && ME.teams.indexOf(t.t) < 0) return;
@@ -1229,6 +1264,81 @@ const uiMotion = new MutationObserver(() => {
   UI_ROUTE = route; nodes.forEach(el => { const target = el.classList.contains('top') ? el : el.querySelector('.hero,.lead'); if (target) target.classList.add('ui-enter'); });
 });
 uiMotion.observe(app, { childList: true });
+
+// Same candidate key selects the same scene on every device; no private data leaves CRM.
+const ARRIVAL_SCENES = [
+  ['suitcase','🧳','🕺','✅','Доставлен!','Слегка помят, но полон надежд.'],
+  ['taxi','🚕','🧍','🏁','Такси свободно!','Пассажир на месте. Водитель может выдохнуть.'],
+  ['rocket','🚀','🧑‍🚀','🌍','Посадка успешна!','Хьюстон, у нас доезд.'],
+  ['slippers','🧳','🏃','🩴','Чемодан обогнал хозяина','Но к финишу собрались все. Даже тапок.'],
+  ['cat','📦','🐈','✅','Кот в мешке прибыл','Распаковали — всё по плану.'],
+  ['curling','🧹','🧍','🎯','Ювелирная доставка','Команда дотёрла до самого финиша.'],
+  ['parachute','🪂','🧍','📍','Приземлился точно!','Кандидат на месте. Парашют можно складывать.'],
+  ['battery','🔋','🧟','☕','Заряд: доехал','Осталось найти розетку и кофе.'],
+  ['redcarpet','📸','🕺','⭐','Звезда прибыла!','Красная дорожка экономкласса уже расстелена.'],
+  ['portal','🌀','🧍','🧳','Телепортация завершена','Загрузка 100%. Чемодан материализовался следом.']
+];
+let ARRIVAL_TIMER = null, ARRIVAL_BUSY = false;
+const arrivalVariant = key => {
+  let h = 2166136261;
+  for (const ch of String(key)) h = Math.imul(h ^ ch.codePointAt(0), 16777619);
+  return (h >>> 0) % ARRIVAL_SCENES.length;
+};
+const arrivalAudience = c => !!(ME && c.t && (ME.u === 'mster_karabas' || (ME.teams || []).includes(c.t)));
+function arrivalMemory() {
+  const m = lsGet('arrival-v1') || {};
+  return {stages:m.stages || {}, seen:m.seen || {}, pending:m.pending || []};
+}
+function enqueueArrival(c, direct) {
+  if (!ME || !c.k || !c.t || !(arrivalAudience(c) || (direct && ME.boss))) return;
+  const m = arrivalMemory();
+  if (!m.seen[c.k] && !m.pending.some(x => x.k === c.k)) m.pending.push({k:c.k,n:c.n,t:c.t,direct:!!direct});
+  m.stages[c.k] = 'Доехал'; lsSet('arrival-v1',m); drainArrivals();
+}
+function observeArrivals(list) {
+  if (!ME) return;
+  const m = arrivalMemory(), current = {};
+  list.forEach(c => {
+    if (!arrivalAudience(c)) return;
+    current[c.k] = c.st;
+    if (m.stages[c.k] && m.stages[c.k] !== 'Доехал' && c.st === 'Доехал' && !m.seen[c.k] && !m.pending.some(x=>x.k===c.k)) m.pending.push({k:c.k,n:c.n,t:c.t});
+  });
+  // First read establishes a baseline; historical arrivals do not burst onto screen.
+  m.stages = current;
+  m.pending = m.pending.filter(p => list.some(c => c.k === p.k && c.st === 'Доехал' && (arrivalAudience(c) || (p.direct && ME.boss))));
+  lsSet('arrival-v1',m); drainArrivals();
+}
+function drainArrivals() {
+  clearTimeout(ARRIVAL_TIMER);
+  const m = arrivalMemory();
+  if (!m.pending.length || document.hidden) return;
+  if (PARTY_CLOSE || ARRIVAL_BUSY) { ARRIVAL_TIMER=setTimeout(drainArrivals,700); return; }
+  const c = m.pending.shift();
+  if (!(arrivalAudience(c) || (c.direct && ME && ME.boss))) { lsSet('arrival-v1',m); drainArrivals(); return; }
+  if (m.seen[c.k]) { lsSet('arrival-v1',m); drainArrivals(); return; }
+  m.seen[c.k]=Date.now(); lsSet('arrival-v1',m); showArrival(c);
+}
+function showArrival(c) {
+  const v = arrivalVariant(c.k), scene = ARRIVAL_SCENES[v];
+  const el = document.createElement('div'); el.className = 'party arrival-party'; el.dataset.arrivalVariant=String(v);
+  const previous = document.activeElement;
+  el.innerHTML = '<section class="party-card arrival-card" role="dialog" aria-modal="true" aria-label="Кандидат доехал" tabindex="-1"><div class="arrival-tag">✅ ДОЕХАЛ · '+esc(c.t)+'</div>'
+    +'<div class="arrival-scene arrival-'+scene[0]+'" aria-hidden="true"><span class="arrival-prop">'+scene[1]+'</span><span class="arrival-hero">'+scene[2]+'</span><span class="arrival-finish">'+scene[3]+'</span><i class="arrival-floor"></i></div>'
+    +'<div role="status" aria-live="polite"><h2>'+esc(scene[4])+'</h2><strong class="arrival-name">'+esc(c.n)+'</strong><p>'+esc(scene[5])+'</p></div><button class="b main" type="button">Доехал. Выдыхаем! 🎉</button></section>';
+  document.body.appendChild(el); hap();
+  const button=el.querySelector('button'); let timer;
+  const focusTrap=e=>{if(e.key==='Tab'){e.preventDefault();button.focus();}};
+  const close=()=>{clearTimeout(timer);el.removeEventListener('keydown',focusTrap);el.remove();PARTY_CLOSE=null;if(previous&&previous.isConnected)previous.focus();drainArrivals();};
+  PARTY_CLOSE=close; button.onclick=close; el.addEventListener('keydown',focusTrap); button.focus(); timer=setTimeout(close,5000);
+}
+// Lightweight existing authenticated list endpoint, never writes candidate status.
+async function refreshArrivals() {
+  if (!ME || document.hidden || ARRIVAL_BUSY || LISTP) return;
+  ARRIVAL_BUSY=true;
+  try { await loadList(true); } catch (_) {} finally { ARRIVAL_BUSY=false; drainArrivals(); }
+}
+setInterval(refreshArrivals,45000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){drainArrivals();refreshArrivals();}});
 
 // ---------- старт ----------
 (async function () {
