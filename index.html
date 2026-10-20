@@ -114,8 +114,9 @@ a{color:var(--blue)}
 .tg i{color:var(--muted);font-style:normal}
 .tg blockquote{margin:6px 0;padding:7px 11px;border-left:2px solid var(--amber);background:var(--raise);border-radius:0 10px 10px 0;white-space:pre-wrap}
 .tg code{font-size:13.5px}
-.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;background:color-mix(in srgb,var(--sky) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
-.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);padding:3px 0}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;overflow-x:auto;scrollbar-width:none;background:color-mix(in srgb,var(--sky) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+.nav::-webkit-scrollbar{display:none}
+.nav button{flex:1 0 76px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);padding:3px 4px}
 .nav button .e{font-size:20px;line-height:1;filter:grayscale(1) opacity(.65)}
 .nav button.on{color:var(--amber);font-weight:600}
 .nav button.on .e{filter:none}
@@ -423,11 +424,13 @@ async function shrink(file) {                                  // фото — �
 // ---------- навигация ----------
 function nav() {
   const requestEmoji = team => (ME.teamList.find(t => t.t === team) || {}).e || '📥';
-  const tabs = (ME.ind ? [['ind', requestEmoji('Команда 4'), 'Заявки']] : []).concat(ME.taker ? [['call', requestEmoji((ME.teams || [])[0]), 'Заявки']] : []).concat([['list', '🧳', 'Кандидаты'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
+  const tabs = (ME.ind ? [['ind', requestEmoji('Команда 4'), 'Заявки']] : []).concat(ME.taker ? [['call', requestEmoji((ME.teams || [])[0]), 'Заявки']] : []).concat([['list', '🧳', 'Кандидаты'], ['arrived', '🛬', 'Долетевшие'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
   if (focusAllowed()) tabs.splice(tabs.findIndex(t => t[0] === 'list') + 1, 0, ['focus', '🍆', 'Фокус']);
   if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
+  const selected = $('#nav').querySelector('button.on');
+  if (selected) $('#nav').scrollLeft = Math.max(0, selected.offsetLeft - ($('#nav').clientWidth - selected.offsetWidth) / 2);
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.legacyRep = false; S.tab = b.dataset.t; render(); });
 }
 function back() { stack.pop(); render(); }
@@ -450,6 +453,7 @@ function render() {
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
   if (S.tab === 'focus' && focusAllowed()) return showFocus();
+  if (S.tab === 'arrived') { const y = S.ay || 0; S.ay = 0; const p = showArrived(); if (y) p.then(() => { if (!stack.length && S.tab === 'arrived') window.scrollTo(0, y); }); return p; }
   if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
   if (S.tab === 'board') return showBoard();
   if (S.tab === 'funnel') return analyticsAllowed() ? showAnalytics('funnel') : showView('f', 'Воронка');
@@ -519,6 +523,51 @@ async function showList(reload) {
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
   app.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { S.cm = S.cm === b.dataset.cm ? '' : b.dataset.cm; showList(); });
   bindItems(); bindQuickComments();
+}
+// Отдельный список подтверждённых доездов; фильтры активных кандидатов на него не влияют.
+function arrivedItems(team) {
+  const q = String(S.aq || '').trim().toLowerCase(), digits = q.replace(/\D/g, '');
+  return LIST.filter(c => c.st === 'Доехал'
+    && (team === 'mine' ? candidateDefaultTeams().includes(c.t) : !team || c.t === team)
+    && (!q || String(c.n || '').toLowerCase().includes(q) || (digits.length >= 3 && String(c.ph || '').replace(/\D/g, '').includes(digits))))
+    .sort((a, b) => String(a.n || '').localeCompare(String(b.n || ''), 'ru'));
+}
+function arrivedItemHtml(c) {
+  const team = ME.teamList.find(t => t.t === c.t), meta = [team ? team.e + ' ' + team.t : c.t || 'Без команды', c.c, c.ph, c.sp ? money(c.sp) : ''];
+  return '<button class="item" data-arrived-key="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><span style="color:var(--arr)">✅ Доехал</span>'
+    + '<div class="meta" style="grid-column:1/-1">' + meta.filter(Boolean).map(esc).join(' · ') + '</div>' + tripHtml(c)
+    + (c.cm ? '<div class="cm"><em>' + staffHtml(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) + '</div>' : '') + '</button>';
+}
+async function showArrived(reload) {
+  if (S.at === undefined) S.at = candidateDefaultTeams().length ? 'mine' : '';
+  if (!LIST.length || reload || LDIRTY) {
+    app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+    try { await loadList(!!reload || LDIRTY); LDIRTY = false; }
+    catch (e) {
+      if (!stack.length && S.tab === 'arrived') {
+        app.innerHTML = '<div class="empty">' + esc(e.message) + '<br><button class="b" id="arrived-retry">Повторить</button></div>';
+        $('#arrived-retry').onclick = () => showArrived(true);
+      }
+      return;
+    }
+  }
+  if (stack.length || S.tab !== 'arrived') return;
+  const teams = ME.teamList.filter(t => ME.boss || (ME.teams || []).includes(t.t));
+  const filters = [['', 'Все']].concat(candidateDefaultTeams().length ? [['mine', 'Мои команды']] : [], teams.map(t => [t.t, t.e + ' ' + t.t]));
+  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Долетевшие</h1><button class="ghost" id="arrived-refresh">Обновить</button></div><div class="sub">Кандидаты со статусом «Доехал»</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S.aq || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
+    + filters.map(([t, label]) => '<button class="chip' + (S.at === t ? ' on' : '') + '" aria-pressed="' + (S.at === t) + '" data-arrived-team="' + esc(t) + '">' + esc(label) + '<b>' + arrivedItems(t).length + '</b></button>').join('')
+    + '</div><div class="sub" id="arrived-count" style="margin-top:10px"></div></div><div class="wrap"><div class="board" id="arrived-items"></div></div>';
+  const draw = () => {
+    const items = arrivedItems(S.at);
+    $('#arrived-count').textContent = 'Долетевших: ' + items.length;
+    $('#arrived-items').innerHTML = items.length ? items.map(arrivedItemHtml).join('') : '<div class="empty">Долетевших по выбранным условиям пока нет</div>';
+    app.querySelectorAll('[data-arrived-key]').forEach(b => b.onclick = () => { S.ay = window.scrollY; stack.push({kind:'card', k:b.dataset.arrivedKey}); render(); });
+    app.querySelectorAll('[data-arrived-team]').forEach(b => { b.classList.toggle('on', S.at === b.dataset.arrivedTeam); b.setAttribute('aria-pressed', String(S.at === b.dataset.arrivedTeam)); b.querySelector('b').textContent = arrivedItems(b.dataset.arrivedTeam).length; });
+  };
+  $('#arrived-refresh').onclick = () => showArrived(true);
+  $('#arrived-search').oninput = e => { S.aq = e.target.value; draw(); };
+  app.querySelectorAll('[data-arrived-team]').forEach(b => b.onclick = () => { S.at = b.dataset.arrivedTeam; draw(); });
+  draw();
 }
 function flightCountdownState(ts, now = Date.now()) {
   const delta = Number(ts) - now;
@@ -1511,7 +1560,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){drainArri
   tg.BackButton.onClick(back);
   const pMe = api('me'), cME = lsGet('me'), cL = lsGet('list');
   loadList().then(() => {                                     // свежий список пришёл — тихо обновляем экран, если человек на нём и не печатает
-    if (ME && !stack.length && S.tab === 'list' && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { const y = window.scrollY; showList(); window.scrollTo(0, y); }
+    if (ME && !stack.length && ['list','arrived'].includes(S.tab) && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { const y = window.scrollY; if (S.tab === 'arrived') showArrived(); else showList(); window.scrollTo(0, y); }
   }).catch(() => {});
   const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
   if (/^c_/.test(sp)) stack.push({ kind: 'card', k: sp.slice(2) });
