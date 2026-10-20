@@ -450,7 +450,7 @@ function render() {
   if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
   const top = stack[stack.length - 1];
   if (top && top.kind === 'archive') { const y = S.zy || 0; S.zy = 0; const p = showArrived(false, true); if (y) p.then(() => { if (arrivedVisible(true)) window.scrollTo(0, y); }); return p; }
-  if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'relatives' ? showRelatives(top) : top.kind === 'add' ? showAdd() : null;
+  if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'relatives' ? showRelatives(top) : top.kind === 'add' ? showAdd() : top.kind === 'addarrived' ? showAdd(true) : null;
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
   if (S.tab === 'focus' && focusAllowed()) return showFocus();
@@ -544,7 +544,7 @@ function arrivedItemHtml(c, archived = false) {
 }
 async function showArrived(reload, archived = false) {
   const teamKey = archived ? 'zt' : 'at', queryKey = archived ? 'zq' : 'aq';
-  if (S[teamKey] === undefined) S[teamKey] = candidateDefaultTeams().length ? 'mine' : '';
+  if (S[teamKey] === undefined) S[teamKey] = !archived && ME.u === 'saygoida' ? '' : candidateDefaultTeams().length ? 'mine' : '';
   if (!LIST.length || reload || LDIRTY) {
     app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
     try { await loadList(!!reload || LDIRTY); LDIRTY = false; }
@@ -557,10 +557,10 @@ async function showArrived(reload, archived = false) {
     }
   }
   if (!arrivedVisible(archived)) return;
-  const teams = ME.teamList.filter(t => ME.boss || (ME.teams || []).includes(t.t));
+  const teams = ME.teamList.filter(t => ME.boss || (!archived && ME.u === 'saygoida') || (ME.teams || []).includes(t.t));
   const filters = [['', 'Все']].concat(candidateDefaultTeams().length ? [['mine', 'Мои команды']] : [], teams.map(t => [t.t, t.e + ' ' + t.t]));
   const categories = [...new Set([...(ME.arch || []), ...LIST.filter(c => c.st === 'Архив').map(archiveCategory)])];
-  app.innerHTML = '<div class="top list-top"><div class="toprow" style="flex-wrap:wrap"><h1 class="h1">' + (archived ? 'Архив' : 'Долетевшие') + '</h1><div class="hdr"><button class="ghost" id="arrived-refresh">Обновить</button><button class="ghost" id="arrived-archive">' + (archived ? '← Долетевшие' : '🗄 Архив') + '</button></div></div><div class="sub">' + (archived ? 'Архивированные кандидаты · по причинам архивирования' : 'Кандидаты со статусом «Доехал»') + '</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S[queryKey] || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
+  app.innerHTML = '<div class="top list-top"><div class="toprow" style="flex-wrap:wrap"><h1 class="h1">' + (archived ? 'Архив' : 'Долетевшие') + '</h1><div class="hdr" style="flex-wrap:wrap;gap:10px">' + (!archived && ME.u === 'saygoida' ? '<button class="b main" id="arrived-add">＋ Добавить</button>' : '') + '<button class="ghost" id="arrived-refresh">Обновить</button><button class="ghost" id="arrived-archive">' + (archived ? '← Долетевшие' : '🗄 Архив') + '</button></div></div><div class="sub">' + (archived ? 'Архивированные кандидаты · по причинам архивирования' : 'Кандидаты со статусом «Доехал»') + '</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S[queryKey] || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
     + filters.map(([t, label]) => '<button class="chip' + (S[teamKey] === t ? ' on' : '') + '" aria-pressed="' + (S[teamKey] === t) + '" data-arrived-team="' + esc(t) + '">' + esc(label) + '<b>' + arrivedItems(t, archived, S.zc).length + '</b></button>').join('')
     + '</div>' + (archived ? '<div class="sub" style="margin-top:12px">Категории</div><div class="chips" style="flex-wrap:wrap">' + [['','Все категории'],...categories.map(c => [c,c])].map(([c,label]) => '<button class="chip" data-archive-category="' + esc(c) + '">' + esc(label) + '<b></b></button>').join('') + '</div><div class="sub" style="margin-top:8px">«Без категории» — причина не указана в доступных данных.</div>' : '')
     + '<div class="sub" id="arrived-count" style="margin-top:10px"></div></div><div class="wrap"><div class="board" id="arrived-items"></div></div>';
@@ -572,6 +572,7 @@ async function showArrived(reload, archived = false) {
     app.querySelectorAll('[data-arrived-team]').forEach(b => { b.classList.toggle('on', S[teamKey] === b.dataset.arrivedTeam); b.setAttribute('aria-pressed', String(S[teamKey] === b.dataset.arrivedTeam)); b.querySelector('b').textContent = arrivedItems(b.dataset.arrivedTeam, archived, S.zc).length; });
     app.querySelectorAll('[data-archive-category]').forEach(b => { const c = b.dataset.archiveCategory; b.classList.toggle('on', (S.zc || '') === c); b.setAttribute('aria-pressed', String((S.zc || '') === c)); b.querySelector('b').textContent = arrivedItems(S[teamKey], true, c).length; });
   };
+  if ($('#arrived-add')) $('#arrived-add').onclick = () => { ADD = {}; stack.push({kind:'addarrived'}); render(); };
   $('#arrived-refresh').onclick = () => showArrived(true, archived);
   $('#arrived-archive').onclick = () => { if (archived) back(); else { S.ay = window.scrollY; stack.push({kind:'archive'}); render(); } };
   $('#arrived-search').oninput = e => { S[queryKey] = e.target.value; draw(); };
@@ -835,9 +836,10 @@ async function showCall(fresh) {
 
 // ---------- ➕ новый кандидат ----------
 let ADD = {};
-function showAdd() {
-  const T = ME.takeTeams, opt = (a, v) => a.map(x => '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
-  app.innerHTML = '<div class="wrap"><div class="hero"><div class="name">Новый кандидат</div><div class="meta">Сразу попадёт «В работу»' + (T.length === 1 ? ' за «' + esc(T[0]) + '»' : '') + '</div></div>'
+function showAdd(arrived = false) {
+  if (arrived && ME.u !== 'saygoida') return;
+  const T = arrived ? ME.teamList.map(t => t.t) : ME.takeTeams, opt = (a, v) => a.map(x => '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+  app.innerHTML = '<div class="wrap"><div class="hero"><div class="name">' + (arrived ? 'Добавить в долетевшие' : 'Новый кандидат') + '</div><div class="meta">' + (arrived ? 'Уже доехавший кандидат · сразу статус «Доехал»' : 'Сразу попадёт «В работу»') + (T.length === 1 ? ' за «' + esc(T[0]) + '»' : '') + '</div></div>'
     + '<div class="sec"><div class="form" style="margin:0">'
     + '<label class="sub">ФИО<input id="an" autocomplete="off" value="' + esc(ADD.name || '') + '" placeholder="Как в паспорте" style="margin-top:4px"></label>'
     + '<label class="sub">Телефон с кодом страны<input id="ap" inputmode="tel" value="' + esc(ADD.phone || '') + '" placeholder="+504 9998 8877" style="margin-top:4px"></label><div id="dup"></div>'
@@ -846,22 +848,32 @@ function showAdd() {
     + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label><input id="aw" class="hid" placeholder="Кто привёл">'
     + (T.length > 1 ? '<label class="sub">Команда<select id="at" style="margin-top:4px">' + T.map(t => '<option value="' + esc(t) + '">' + ((ME.teamList.find(x => x.t === t) || {}).e || '') + ' ' + esc(t) + '</option>').join('') + '</select></label>' : '')
-    + '<button class="b main" id="asv" style="margin-top:6px">Сохранить</button></div></div></div>';
+    + '<button class="b main" id="asv" style="margin-top:6px">' + (arrived ? 'Добавить в долетевшие' : 'Сохранить') + '</button></div></div></div>';
   const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw');
   ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*'); as.onchange = () => aw.classList.toggle('hid', as.value !== 'Сарафанка');
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
+  const saved = d => { hap(); toast(arrived ? 'Добавлен в долетевшие' : 'Кандидат добавлен'); ADD = {}; LDIRTY = true; if (arrived) { S.at = ''; S.aq = ''; } stack.pop(); stack.push({kind:'card', k:d.k}); render(); };
   const showDup = L => { const el = $('#dup'); if (!L) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div class="sec quiet" style="margin:4px 0"><div class="warn">Этот номер уже есть в таблице</div>' + leadRow(L).replace('border-top:1px solid var(--line)', 'border-top:0') + '</div>'; bindLeads(el); };
-  $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { showDup(await api('dup', { phone: v })); } catch (e) {} };
+    el.innerHTML = '<div class="sec quiet" style="margin:4px 0"><div class="warn">Этот номер уже есть в таблице</div>' + (arrived ? '<div class="name" style="margin:8px 0">' + esc(L.n) + '</div><div class="meta">' + esc([L.ph, L.t, L.st || 'Новый'].filter(Boolean).join(' · ')) + '</div>' : leadRow(L).replace('border-top:1px solid var(--line)', 'border-top:0')) + (arrived && L.st !== 'Архив' ? '<button class="b main" id="existing-arrived">' + (L.st === 'Доехал' ? 'Уже доехал · открыть' : 'Отметить доехавшим') + '</button>' : '') + '</div>'; bindLeads(el);
+    if ($('#existing-arrived')) $('#existing-arrived').onclick = async () => {
+      if (L.st === 'Доехал') { saved({k:L.k}); return; }
+      if (!await confirmP('Подтвердить, что ' + L.n + ' уже доехал? Команда: ' + (L.t || ($('#at') ? $('#at').value : T[0])))) return;
+      const b = $('#existing-arrived'); b.disabled = true;
+      try { saved(await api('addarrived', {k:L.k, from:L.st || '', team:$('#at') ? $('#at').value : T[0]})); }
+      catch(e) { toast(e.message); b.disabled = false; }
+    }
+  };
+  $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { const duplicate = await api('dup', { phone: v }); if ($('#ap') && $('#ap').value === v) showDup(duplicate); } catch (e) {} };
   $('#asv').onclick = async () => {
     const b = $('#asv'); ADD.name = $('#an').value.trim(); ADD.phone = $('#ap').value.trim(); ADD.country = ac.value === '*' ? acx.value.trim() : ac.value; ADD.src = as.value;
     if (ADD.name.length < 2) return toast('Напишите ФИО'); if (ADD.phone.replace(/\D/g, '').length < 7) return toast('Нужен телефон с кодом страны'); if (!ADD.country) return toast('Выберите страну');
     if (ADD.src === 'Сарафанка' && !aw.value.trim()) return toast('Напишите, кто привёл');
     b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-    try { const d = await api('add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: aw.value, team: $('#at') ? $('#at').value : T[0] });
-      if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = 'Сохранить'; return; }
-      hap(); toast('Кандидат добавлен'); ADD = {}; LDIRTY = true; stack.pop(); stack.push({ kind: 'card', k: d.k }); render(); }
-    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = 'Сохранить'; } };
+    try { if (arrived && !await confirmP('Добавить ' + ADD.name + ' сразу со статусом «Доехал»?')) { b.disabled = false; b.textContent = 'Добавить в долетевшие'; return; }
+      const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: aw.value, team: $('#at') ? $('#at').value : T[0] });
+      if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; return; }
+      saved(d); }
+    catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; } };
 }
 
 // ---------- карточка ----------
