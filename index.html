@@ -449,6 +449,7 @@ function render() {
   nav(); window.scrollTo(0, 0);
   if (tg) { if (stack.length) { tg.BackButton.show(); } else tg.BackButton.hide(); }
   const top = stack[stack.length - 1];
+  if (top && top.kind === 'archive') { const y = S.zy || 0; S.zy = 0; const p = showArrived(false, true); if (y) p.then(() => { if (arrivedVisible(true)) window.scrollTo(0, y); }); return p; }
   if (top) return top.kind === 'card' ? showCard(top.k) : top.kind === 'relatives' ? showRelatives(top) : top.kind === 'add' ? showAdd() : null;
   if (S.tab === 'call') return showCall();
   if (S.tab === 'ind') return showInd();
@@ -525,48 +526,57 @@ async function showList(reload) {
   bindItems(); bindQuickComments();
 }
 // Отдельный список подтверждённых доездов; фильтры активных кандидатов на него не влияют.
-function arrivedItems(team) {
-  const q = String(S.aq || '').trim().toLowerCase(), digits = q.replace(/\D/g, '');
-  return LIST.filter(c => c.st === 'Доехал'
+function archiveCategory(c) { return String(c.arch || '').trim() || 'Без категории'; }
+function arrivedVisible(archived) { const top = stack[stack.length - 1]; return S.tab === 'arrived' && (archived ? top && top.kind === 'archive' : !top); }
+function arrivedItems(team, archived = false, category = '') {
+  const q = String(S[archived ? 'zq' : 'aq'] || '').trim().toLowerCase(), digits = q.replace(/\D/g, '');
+  return LIST.filter(c => c.st === (archived ? 'Архив' : 'Доехал')
+    && (!archived || !category || archiveCategory(c) === category)
     && (team === 'mine' ? candidateDefaultTeams().includes(c.t) : !team || c.t === team)
     && (!q || String(c.n || '').toLowerCase().includes(q) || (digits.length >= 3 && String(c.ph || '').replace(/\D/g, '').includes(digits))))
     .sort((a, b) => String(a.n || '').localeCompare(String(b.n || ''), 'ru'));
 }
-function arrivedItemHtml(c) {
+function arrivedItemHtml(c, archived = false) {
   const team = ME.teamList.find(t => t.t === c.t), meta = [team ? team.e + ' ' + team.t : c.t || 'Без команды', c.c, c.ph, c.sp ? money(c.sp) : ''];
-  return '<button class="item" data-arrived-key="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><span style="color:var(--arr)">✅ Доехал</span>'
-    + '<div class="meta" style="grid-column:1/-1">' + meta.filter(Boolean).map(esc).join(' · ') + '</div>' + tripHtml(c)
+  return '<button class="item" data-arrived-key="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><span style="color:var(--' + (archived ? 'muted' : 'arr') + ')">' + (archived ? '🗄 Архив' : '✅ Доехал') + '</span>'
+    + '<div class="meta" style="grid-column:1/-1">' + meta.filter(Boolean).map(esc).join(' · ') + '</div>' + (archived ? '<div class="sub" style="grid-column:1/-1">Категория: ' + esc(archiveCategory(c)) + '</div>' : '') + tripHtml(c)
     + (c.cm ? '<div class="cm"><em>' + staffHtml(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) + '</div>' : '') + '</button>';
 }
-async function showArrived(reload) {
-  if (S.at === undefined) S.at = candidateDefaultTeams().length ? 'mine' : '';
+async function showArrived(reload, archived = false) {
+  const teamKey = archived ? 'zt' : 'at', queryKey = archived ? 'zq' : 'aq';
+  if (S[teamKey] === undefined) S[teamKey] = candidateDefaultTeams().length ? 'mine' : '';
   if (!LIST.length || reload || LDIRTY) {
     app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
     try { await loadList(!!reload || LDIRTY); LDIRTY = false; }
     catch (e) {
-      if (!stack.length && S.tab === 'arrived') {
+      if (arrivedVisible(archived)) {
         app.innerHTML = '<div class="empty">' + esc(e.message) + '<br><button class="b" id="arrived-retry">Повторить</button></div>';
-        $('#arrived-retry').onclick = () => showArrived(true);
+        $('#arrived-retry').onclick = () => showArrived(true, archived);
       }
       return;
     }
   }
-  if (stack.length || S.tab !== 'arrived') return;
+  if (!arrivedVisible(archived)) return;
   const teams = ME.teamList.filter(t => ME.boss || (ME.teams || []).includes(t.t));
   const filters = [['', 'Все']].concat(candidateDefaultTeams().length ? [['mine', 'Мои команды']] : [], teams.map(t => [t.t, t.e + ' ' + t.t]));
-  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Долетевшие</h1><button class="ghost" id="arrived-refresh">Обновить</button></div><div class="sub">Кандидаты со статусом «Доехал»</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S.aq || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
-    + filters.map(([t, label]) => '<button class="chip' + (S.at === t ? ' on' : '') + '" aria-pressed="' + (S.at === t) + '" data-arrived-team="' + esc(t) + '">' + esc(label) + '<b>' + arrivedItems(t).length + '</b></button>').join('')
-    + '</div><div class="sub" id="arrived-count" style="margin-top:10px"></div></div><div class="wrap"><div class="board" id="arrived-items"></div></div>';
+  const categories = [...new Set([...(ME.arch || []), ...LIST.filter(c => c.st === 'Архив').map(archiveCategory)])];
+  app.innerHTML = '<div class="top list-top"><div class="toprow" style="flex-wrap:wrap"><h1 class="h1">' + (archived ? 'Архив' : 'Долетевшие') + '</h1><div class="hdr"><button class="ghost" id="arrived-refresh">Обновить</button><button class="ghost" id="arrived-archive">' + (archived ? '← Долетевшие' : '🗄 Архив') + '</button></div></div><div class="sub">' + (archived ? 'Архивированные кандидаты · по причинам архивирования' : 'Кандидаты со статусом «Доехал»') + '</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S[queryKey] || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
+    + filters.map(([t, label]) => '<button class="chip' + (S[teamKey] === t ? ' on' : '') + '" aria-pressed="' + (S[teamKey] === t) + '" data-arrived-team="' + esc(t) + '">' + esc(label) + '<b>' + arrivedItems(t, archived, S.zc).length + '</b></button>').join('')
+    + '</div>' + (archived ? '<div class="sub" style="margin-top:12px">Категории</div><div class="chips" style="flex-wrap:wrap">' + [['','Все категории'],...categories.map(c => [c,c])].map(([c,label]) => '<button class="chip" data-archive-category="' + esc(c) + '">' + esc(label) + '<b></b></button>').join('') + '</div><div class="sub" style="margin-top:8px">«Без категории» — причина не указана в доступных данных.</div>' : '')
+    + '<div class="sub" id="arrived-count" style="margin-top:10px"></div></div><div class="wrap"><div class="board" id="arrived-items"></div></div>';
   const draw = () => {
-    const items = arrivedItems(S.at);
-    $('#arrived-count').textContent = 'Долетевших: ' + items.length;
-    $('#arrived-items').innerHTML = items.length ? items.map(arrivedItemHtml).join('') : '<div class="empty">Долетевших по выбранным условиям пока нет</div>';
-    app.querySelectorAll('[data-arrived-key]').forEach(b => b.onclick = () => { S.ay = window.scrollY; stack.push({kind:'card', k:b.dataset.arrivedKey}); render(); });
-    app.querySelectorAll('[data-arrived-team]').forEach(b => { b.classList.toggle('on', S.at === b.dataset.arrivedTeam); b.setAttribute('aria-pressed', String(S.at === b.dataset.arrivedTeam)); b.querySelector('b').textContent = arrivedItems(b.dataset.arrivedTeam).length; });
+    const items = arrivedItems(S[teamKey], archived, S.zc);
+    $('#arrived-count').textContent = (archived ? 'В архиве: ' : 'Долетевших: ') + items.length;
+    $('#arrived-items').innerHTML = items.length ? items.map(c => arrivedItemHtml(c, archived)).join('') : '<div class="empty">' + (archived ? 'Архивированных кандидатов по выбранным условиям нет' : 'Долетевших по выбранным условиям пока нет') + '</div>';
+    app.querySelectorAll('[data-arrived-key]').forEach(b => b.onclick = () => { S[archived ? 'zy' : 'ay'] = window.scrollY; stack.push({kind:'card', k:b.dataset.arrivedKey}); render(); });
+    app.querySelectorAll('[data-arrived-team]').forEach(b => { b.classList.toggle('on', S[teamKey] === b.dataset.arrivedTeam); b.setAttribute('aria-pressed', String(S[teamKey] === b.dataset.arrivedTeam)); b.querySelector('b').textContent = arrivedItems(b.dataset.arrivedTeam, archived, S.zc).length; });
+    app.querySelectorAll('[data-archive-category]').forEach(b => { const c = b.dataset.archiveCategory; b.classList.toggle('on', (S.zc || '') === c); b.setAttribute('aria-pressed', String((S.zc || '') === c)); b.querySelector('b').textContent = arrivedItems(S[teamKey], true, c).length; });
   };
-  $('#arrived-refresh').onclick = () => showArrived(true);
-  $('#arrived-search').oninput = e => { S.aq = e.target.value; draw(); };
-  app.querySelectorAll('[data-arrived-team]').forEach(b => b.onclick = () => { S.at = b.dataset.arrivedTeam; draw(); });
+  $('#arrived-refresh').onclick = () => showArrived(true, archived);
+  $('#arrived-archive').onclick = () => { if (archived) back(); else { S.ay = window.scrollY; stack.push({kind:'archive'}); render(); } };
+  $('#arrived-search').oninput = e => { S[queryKey] = e.target.value; draw(); };
+  app.querySelectorAll('[data-arrived-team]').forEach(b => b.onclick = () => { S[teamKey] = b.dataset.arrivedTeam; draw(); });
+  app.querySelectorAll('[data-archive-category]').forEach(b => b.onclick = () => { S.zc = b.dataset.archiveCategory; draw(); });
   draw();
 }
 function flightCountdownState(ts, now = Date.now()) {
