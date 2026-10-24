@@ -494,7 +494,7 @@ async function showList(reload) {
   if (LIST.length && LDIRTY && !reload) { LDIRTY = false;
     loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
-  const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.teams.indexOf(ME.teamList[i].t) >= 0);
+  const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.moderator || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(candidateDefaultTeams().length > 1 ? [['mine', 'Мои команды']] : [], teams, [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
   const isOn = k => ['pass','nopass'].includes(k) ? S.pf === k : k === 'a' ? S.f === 'a' && !S.pf : S.f === k;
   const cnt = k => { const f = S.f, pf = S.pf; if (['pass','nopass'].includes(k)) S.pf = k; else { S.f = k; if (k === 'a') S.pf = ''; } const n = LIST.filter(matches).length; S.f = f; S.pf = pf; return n; };
@@ -557,7 +557,7 @@ async function showArrived(reload, archived = false) {
     }
   }
   if (!arrivedVisible(archived)) return;
-  const teams = ME.teamList.filter(t => ME.boss || (!archived && ME.u === 'saygoida') || (ME.teams || []).includes(t.t));
+  const teams = ME.teamList.filter(t => ME.boss || ME.moderator || (!archived && ME.u === 'saygoida') || (ME.teams || []).includes(t.t));
   const filters = [['', 'Все']].concat(candidateDefaultTeams().length ? [['mine', 'Мои команды']] : [], teams.map(t => [t.t, t.e + ' ' + t.t]));
   const categories = [...new Set([...(ME.arch || []), ...LIST.filter(c => c.st === 'Архив').map(archiveCategory)])];
   app.innerHTML = '<div class="top list-top"><div class="toprow" style="flex-wrap:wrap"><h1 class="h1">' + (archived ? 'Архив' : 'Долетевшие') + '</h1><div class="hdr" style="flex-wrap:wrap;gap:10px">' + (!archived && ME.u === 'saygoida' ? '<button class="b main" id="arrived-add">＋ Добавить</button>' : '') + '<button class="ghost" id="arrived-refresh">Обновить</button><button class="ghost" id="arrived-archive">' + (archived ? '← Долетевшие' : '🗄 Архив') + '</button></div></div><div class="sub">' + (archived ? 'Архивированные кандидаты · по причинам архивирования' : 'Кандидаты со статусом «Доехал»') + '</div><input style="margin-top:10px" id="arrived-search" type="search" placeholder="Имя или номер телефона" value="' + esc(S[queryKey] || '') + '"><div class="chips" style="flex-wrap:wrap;margin-top:10px">'
@@ -1266,7 +1266,7 @@ async function showLeoQueue(reload) {
 const freshComment = (c, now = Date.now()) => !!(c.cm && String(c.cm[2] || '').trim() && now - Number(c.cm[0]) < 864e5);
 const activeCandidate = c => c.st === 'В работе' || c.st === 'В пути';
 const ownReminder = c => ME.u !== 'mster_karabas' && (ME.u !== 'wrkinrussia' || c.t === 'Команда 4');
-const canComment = c => !!(ME && c.t && (ME.boss || ME.teams.indexOf(c.t) >= 0));
+const canComment = c => !!(ME && c.t && (ME.boss || ME.moderator || ME.teams.indexOf(c.t) >= 0));
 function teamIssuesHtml() {
   if (!ME || !['wrkinrussia', 'mster_karabas'].includes(ME.u)) return '';
   const rows = ME.teamList.map(t => {
@@ -1310,7 +1310,7 @@ function cmReminderHtml() {
 }
 function cmQuickHtml(c) {
   if (leoCommentsAllowed()) {
-    if (!activeCandidate(c) || !canComment(c) || !ME.teams.includes(c.t)) return '';
+    if (!activeCandidate(c) || !canComment(c)) return '';
     return '<div class="cm-quick">' + (CM_OPEN === c.k && CM_PLACE === 'row' ? cmEditor(c, 'row') : '<div class="acts"><button type="button" class="b" data-leo-wa="' + esc(c.ph.replace(/\D/g, '')) + '"' + (c.ph.replace(/\D/g, '') ? '' : ' disabled') + '>WhatsApp ↗</button><button type="button" class="b" data-cm-open="' + esc(c.k) + '" data-place="row">✍️ Комментарий</button></div>') + '</div>';
   }
   if (!activeCandidate(c) || !canComment(c) || !ownReminder(c) || freshComment(c)) return '';
