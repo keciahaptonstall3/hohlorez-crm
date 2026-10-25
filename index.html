@@ -369,7 +369,7 @@ function lsGet(k) { try { const x = localStorage.getItem('crm' + UID + ':' + k);
 function lsSet(k, v) { try { localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (e) {} }
 let LISTP = null, LDIRTY = false;                          // LDIRTY — данные менялись: список показываем сразу, свежий подтягиваем в фоне
 function loadList(force) {                                  // один запрос списка на всех (старт + экран)
-  if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
+  if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; resetCandidateSearch(); lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
   return LISTP;
 }
 let STAFF_AWARDS = lsGet('staffAwards') || {byName:{},byNick:{}};
@@ -461,6 +461,30 @@ function render() {
   if (S.tab === 'rep') return showRep();
 }
 
+
+// Full history remains on the server. Debounce requests and discard stale query responses.
+let CSEARCH = {q:'', keys:new Set(), loading:false, error:'', done:false}, CSEARCH_TIMER = null, CSEARCH_SEQ = 0;
+function resetCandidateSearch() { clearTimeout(CSEARCH_TIMER); CSEARCH_SEQ++; CSEARCH = {q:'', keys:new Set(), loading:false, error:'', done:false}; }
+function candidateQueryMatches(c, query) {
+  const q = String(query || '').trim().toLowerCase(); if (!q) return true;
+  const digits = /^[+\d\s().-]+$/.test(q) ? q.replace(/\D/g, '') : '';
+  return String(c.n || '').toLowerCase().includes(q) || (digits.length >= 3 && String(c.ph || '').replace(/\D/g, '').includes(digits)) || (CSEARCH.q === q && CSEARCH.keys.has(c.k));
+}
+function requestCandidateSearch(query, draw) {
+  const q = String(query || '').trim().toLowerCase();
+  clearTimeout(CSEARCH_TIMER);
+  if (q.length < 2) { resetCandidateSearch(); return; }
+  if (CSEARCH.q === q && CSEARCH.done) return;
+  const seq = ++CSEARCH_SEQ;
+  CSEARCH = {q:q, keys:new Set(), loading:true, error:'', done:false};
+  CSEARCH_TIMER = setTimeout(async () => {
+    try { const keys = await api('search', {q:q}); if (seq !== CSEARCH_SEQ) return; CSEARCH.keys = new Set(keys); CSEARCH.done = true; }
+    catch(e) { if (seq !== CSEARCH_SEQ) return; CSEARCH.error = e.message; }
+    if (seq !== CSEARCH_SEQ) return;
+    CSEARCH.loading = false; draw();
+  }, 350);
+}
+
 // ---------- список кандидатов ----------
 function tripStep(c) { const core = ['pass', 'book', 'tour'].every(x => (c.docs || []).indexOf(x) >= 0);
   return c.st === 'Доехал' ? 5 : c.st === 'В пути' ? 4 : c.fly ? 3 : core ? 2 : 1; }
@@ -485,8 +509,7 @@ function matches(c) {
   if (S.pf === 'pass' && c.pass !== 'Да') return false;
   if (S.pf === 'nopass' && c.pass === 'Да') return false;
   if (f === 'fly' && !c.fly) return false;
-  if (S.q) { const q = S.q.toLowerCase(), d = q.replace(/\D/g, '');
-    if (!(c.n.toLowerCase().includes(q) || (d.length >= 3 && c.ph.replace(/\D/g, '').includes(d)))) return false; }
+  if (S.q && !candidateQueryMatches(c, S.q)) return false;
   return true;
 }
 async function showList(reload) {
@@ -506,7 +529,8 @@ async function showList(reload) {
   const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm);
   const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
   app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
-    + '<input id="q" type="search" placeholder="Имя или номер телефона" value="' + esc(S.q) + '">'
+    + '<input id="q" type="search" placeholder="Поиск" aria-label="Поиск кандидатов по имени, телефону, комментариям, вопросам и тратам" value="' + esc(S.q) + '">'
+    + '<div id="search-status" class="sub" role="status"></div>'
     + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
     + '<div class="chips">' + F.map(x => '<button class="chip' + (isOn(x[0]) ? ' on' : '') + '" aria-pressed="' + isOn(x[0]) + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" aria-pressed="' + (S.show === x[0]) + '" data-s="' + x[0] + '">' + x[1] + '<b>' + stageCount(x[0]) + '</b></button>').join('') + '</div>'
@@ -518,7 +542,19 @@ async function showList(reload) {
   $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
-  const q = $('#q'); q.oninput = () => { S.q = q.value; $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди ваших кандидатов нет</div>'; app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm)); app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f)); $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length; bindItems(); bindQuickComments(); farBtn(); };
+  const q = $('#q');
+  const redrawSearch = () => {
+    if (!q.isConnected || stack.length || S.tab !== 'list') return;
+    $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди выбранных кандидатов нет</div>';
+    app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm));
+    app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f));
+    app.querySelectorAll('[data-s]').forEach(b => b.querySelector('b').textContent = stageCount(b.dataset.s));
+    $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length;
+    const status = $('#search-status'); if (status) status.textContent = CSEARCH.loading ? 'Ищу в комментариях, вопросах и тратах…' : CSEARCH.error ? 'Поиск по истории не удался. ' + CSEARCH.error : '';
+    bindItems(); bindQuickComments(); farBtn();
+  };
+  q.oninput = () => { S.q = q.value; requestCandidateSearch(S.q, redrawSearch); redrawSearch(); };
+  requestCandidateSearch(S.q, redrawSearch); redrawSearch();
   farBtn(); if (S.show === 'act') waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const f = b.dataset.f; if (['pass','nopass'].includes(f)) S.pf = S.pf === f ? '' : f; else { S.f = S.f === f ? 'a' : f; if (f === 'a') S.pf = ''; } showList(); });
   app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.show = b.dataset.s; showList(); });
