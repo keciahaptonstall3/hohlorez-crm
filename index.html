@@ -348,6 +348,12 @@ input,textarea,select{transition:border-color 160ms ease}
 
 @media(prefers-reduced-motion:reduce){.arrival-scene span,.arrival-card{animation:none!important}.arrival-floor{opacity:.5}}
 
+.search-hits{margin:0 14px 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--sky);overflow-wrap:anywhere}
+.search-hits .cm-match{background:var(--amber);color:var(--amber-ink);padding:0 2px}
+.search-hits .match-text{margin-top:6px;white-space:pre-wrap;font-size:14px}
+.search-hits .match-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;color:var(--muted);font-size:12px}
+.search-hits .match-nav button{border:1px solid var(--line);border-radius:8px;padding:5px 12px}
+.search-hits .match-nav button:disabled{opacity:.35}
 </style>
 </head>
 <body>
@@ -463,8 +469,8 @@ function render() {
 
 
 // Full history remains on the server. Debounce requests and discard stale query responses.
-let CSEARCH = {q:'', keys:new Set(), loading:false, error:'', done:false}, CSEARCH_TIMER = null, CSEARCH_SEQ = 0;
-function resetCandidateSearch() { clearTimeout(CSEARCH_TIMER); CSEARCH_SEQ++; CSEARCH = {q:'', keys:new Set(), loading:false, error:'', done:false}; }
+let CSEARCH = {q:'', keys:new Set(), hits:new Map(), loading:false, error:'', done:false}, CSEARCH_TIMER = null, CSEARCH_SEQ = 0;
+function resetCandidateSearch() { clearTimeout(CSEARCH_TIMER); CSEARCH_SEQ++; CSEARCH = {q:'', keys:new Set(), hits:new Map(), loading:false, error:'', done:false}; }
 function candidateQueryMatches(c, query) {
   const q = String(query || '').trim().toLowerCase(); if (!q) return true;
   const digits = /^[+\d\s().-]+$/.test(q) ? q.replace(/\D/g, '') : '';
@@ -476,13 +482,47 @@ function requestCandidateSearch(query, draw) {
   if (q.length < 2) { resetCandidateSearch(); return; }
   if (CSEARCH.q === q && CSEARCH.done) return;
   const seq = ++CSEARCH_SEQ;
-  CSEARCH = {q:q, keys:new Set(), loading:true, error:'', done:false};
+  CSEARCH = {q:q, keys:new Set(), hits:new Map(), loading:true, error:'', done:false};
   CSEARCH_TIMER = setTimeout(async () => {
-    try { const keys = await api('search', {q:q}); if (seq !== CSEARCH_SEQ) return; CSEARCH.keys = new Set(keys); CSEARCH.done = true; }
+    try { const results = await api('search', {q:q,details:true}); if (seq !== CSEARCH_SEQ) return; CSEARCH.keys = new Set(results.map(x=>typeof x==='string'?x:x.k)); CSEARCH.hits = new Map(results.filter(x=>typeof x!=='string').map(x=>[x.k,{total:x.total,matches:x.matches,index:0}])); CSEARCH.done = true; }
     catch(e) { if (seq !== CSEARCH_SEQ) return; CSEARCH.error = e.message; }
     if (seq !== CSEARCH_SEQ) return;
     CSEARCH.loading = false; draw();
   }, 350);
+}
+
+
+function searchHighlight(text, query) {
+  text=String(text||''); const normalize=x=>String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/ё/g,'е');
+  let normalized='',map=[]; let offset=0;
+  for(const ch of text){const n=normalize(ch);for(let i=0;i<n.length;i++)map.push([offset,offset+ch.length]);normalized+=n;offset+=ch.length;}
+  const q=normalize(query).trim(); if(!q)return esc(text);
+  let spans=[];const phrase=normalized.includes(q),words=phrase?[q]:q.split(/\s+/).filter(x=>x.length>=2);
+  words.forEach(w=>{let at=0,i;while((i=normalized.indexOf(w,at))>=0){spans.push([map[i][0],map[i+w.length-1][1]]);at=i+w.length;}});
+  if(!spans.length&&/^[+\d\s().-]+$/.test(q)){
+    const digits=q.replace(/\D/g,'');let only='',positions=[];for(let i=0;i<text.length;i++)if(/\d/.test(text[i])){only+=text[i];positions.push(i);}
+    let at=0,i;if(digits.length>=3)while((i=only.indexOf(digits,at))>=0){spans.push([positions[i],positions[i+digits.length-1]+1]);at=i+digits.length;}
+  }
+  spans.sort((a,b)=>a[0]-b[0]);const merged=[];spans.forEach(s=>{const last=merged[merged.length-1];if(last&&s[0]<=last[1])last[1]=Math.max(last[1],s[1]);else merged.push(s);});
+  let result='',at=0;merged.forEach(s=>{result+=esc(text.slice(at,s[0]))+'<mark class="cm-match">'+esc(text.slice(s[0],s[1]))+'</mark>';at=s[1];});return result+esc(text.slice(at));
+}
+function searchMatchesHtml(c) {
+  if(!String(S.q||'').trim() || CSEARCH.q!==String(S.q).trim().toLowerCase())return '';
+  const hit=CSEARCH.hits.get(c.k);if(!hit||!hit.total)return '';
+  const m=hit.matches[hit.index];if(!m)return '';
+  return '<div class="search-hits" data-search-hit="'+esc(c.k)+'"><div class="sub">'+esc(m.kind)+' · '+staffHtml(m.by)+(m.at?' · '+fmt(m.at):'')+'</div><div class="match-text">'+searchHighlight(m.text,S.q)+'</div>'+(hit.total>1?'<div class="match-nav"><button type="button" data-search-step="-1" aria-label="Предыдущее совпадение"'+(!hit.index?' disabled':'')+'>←</button><span>'+(hit.index+1)+' из '+hit.total+'</span><button type="button" data-search-step="1" aria-label="Следующее совпадение"'+(hit.index>=hit.total-1?' disabled':'')+'>→</button></div>':'')+'</div>';
+}
+function bindSearchMatches(){
+  app.querySelectorAll('[data-search-step]').forEach(b=>b.onclick=async()=>{
+    const panel=b.closest('[data-search-hit]'),key=panel.dataset.searchHit,state=CSEARCH,hit=state.hits.get(key),c=LIST.find(c=>c.k===key);if(!hit||!c)return;
+    const next=hit.index+Number(b.dataset.searchStep);if(next<0||next>=hit.total)return;
+    b.disabled=true;
+    try{
+      if(!hit.matches[next]){const offset=Math.floor(next/3)*3,r=await api('searchmatches',{q:state.q,k:key,offset:offset});if(state!==CSEARCH||!panel.isConnected)return;hit.total=r.total;r.matches.forEach((m,i)=>hit.matches[offset+i]=m);}
+      if(!hit.matches[next])throw Error('Совпадения изменились. Обновите поиск.');
+      hit.index=next;panel.outerHTML=searchMatchesHtml(c);bindSearchMatches();
+    }catch(e){if(state===CSEARCH&&b.isConnected){b.disabled=false;toast(e.message);}}
+  });
 }
 
 // ---------- список кандидатов ----------
@@ -649,9 +689,10 @@ function itemHtml(c) {
     + (activeCandidate(c) && budgetExhausted(c) ? '<div class="warn" style="grid-column:1/-1">🚨 Бюджет: ' + money(c.sp) + ' из ' + money(ME.limit) + '</div>' : '')
     + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
     + tripHtml(c)
-    + '<div class="cm">' + (c.cm ? '<em>' + staffHtml(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + (ME.boss && c.st === 'Архив' ? '<div style="padding:0 14px 14px"><button class="b" data-restore="' + esc(c.k) + '" style="width:100%">↩️ Вернуть в работу</button></div>' : '') + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '') + cmQuickHtml(c) + '</div>';
+    + '<div class="cm">' + (c.cm ? '<em>' + staffHtml(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) : 'Комментариев ещё нет') + '</div></button>' + searchMatchesHtml(c) + (ME.boss && c.st === 'Архив' ? '<div style="padding:0 14px 14px"><button class="b" data-restore="' + esc(c.k) + '" style="width:100%">↩️ Вернуть в работу</button></div>' : '') + (focusAllowed() ? '<div class="focus-row-action">' + focusButton(c.k) + '</div>' : '') + cmQuickHtml(c) + '</div>';
 }
 function bindItems() {
+  bindSearchMatches();
   app.querySelectorAll('.item[data-k]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({ kind: 'card', k: b.dataset.k }); render(); }); bindFocus();
   app.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
     if (b.disabled) return; const c = LIST.find(x => x.k === b.dataset.restore); if (!c) return;
