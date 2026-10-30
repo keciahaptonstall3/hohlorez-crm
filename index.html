@@ -923,11 +923,27 @@ function showAdd(arrived = false) {
     + '<label class="sub">Страна<select id="ac" style="margin-top:4px"><option value="">— выберите —</option>' + ME.countries.map(c => '<option value="' + esc(c) + '"' + (ADD.country === c ? ' selected' : '') + '>' + (ME.flagsEmo[c] || '🌍') + ' ' + esc(c) + '</option>').join('') + '<option value="*">Другая…</option></select></label>'
     + '<input id="acx" class="hid" placeholder="Страна по-английски, как в таблице">'
     + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
-    + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label><input id="aw" class="hid" placeholder="Кто привёл">'
+    + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label>'
+    + '<div id="arbox" class="hid"><label class="sub">Рекрутер<select id="ar" style="margin-top:4px"><option value="">— выберите —</option><option value="*">+ Новый рекрутер</option></select></label><input id="aw" class="hid" placeholder="Имя нового рекрутера" style="margin-top:8px"></div>'
     + (T.length > 1 ? '<label class="sub">Команда<select id="at" style="margin-top:4px">' + T.map(t => '<option value="' + esc(t) + '">' + ((ME.teamList.find(x => x.t === t) || {}).e || '') + ' ' + esc(t) + '</option>').join('') + '</select></label>' : '')
     + '<button class="b main" id="asv" style="margin-top:6px">' + (arrived ? 'Добавить в долетевшие' : 'Сохранить') + '</button></div></div></div>';
-  const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw');
-  ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*'); as.onchange = () => aw.classList.toggle('hid', as.value !== 'Сарафанка');
+  const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw'), ar = $('#ar'), arbox = $('#arbox');
+  const recruiterName = () => (ar.value === '*' ? aw.value : ar.value).trim();
+  let recruitersLoading = false, recruitersLoaded = false;
+  const loadRecruiters = async () => {
+    if (recruitersLoading || recruitersLoaded) return;
+    recruitersLoading = true;
+    try { const names = await api('recruiters'); if (!ar.isConnected) return;
+      const selected = ar.value;
+      ar.innerHTML = '<option value="">— выберите —</option>' + names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '<option value="*">+ Новый рекрутер</option>';
+      ar.value = selected; recruitersLoaded = true;
+    } catch(e) { if (ar.isConnected) toast('Список не загрузился. Можно внести нового рекрутера.'); }
+    finally { recruitersLoading = false; }
+  };
+  ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*');
+  as.onchange = () => { arbox.classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value === 'Сарафанка') loadRecruiters(); };
+  ar.onchange = () => { aw.classList.toggle('hid', ar.value !== '*'); if (ar.value === '*') aw.focus(); };
+  as.onchange();
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
   const saved = d => { hap(); toast(arrived ? 'Добавлен в долетевшие' : 'Кандидат добавлен'); ADD = {}; LDIRTY = true; if (arrived) { S.at = ''; S.aq = ''; } stack.pop(); stack.push({kind:'card', k:d.k}); render(); };
   const showDup = L => { const el = $('#dup'); if (!L) { el.innerHTML = ''; return; }
@@ -944,10 +960,10 @@ function showAdd(arrived = false) {
   $('#asv').onclick = async () => {
     const b = $('#asv'); ADD.name = $('#an').value.trim(); ADD.phone = $('#ap').value.trim(); ADD.country = ac.value === '*' ? acx.value.trim() : ac.value; ADD.src = as.value;
     if (ADD.name.length < 2) return toast('Напишите ФИО'); if (ADD.phone.replace(/\D/g, '').length < 7) return toast('Нужен телефон с кодом страны'); if (!ADD.country) return toast('Выберите страну');
-    if (ADD.src === 'Сарафанка' && !aw.value.trim()) return toast('Напишите, кто привёл');
+    if (ADD.src === 'Сарафанка' && !recruiterName()) return toast('Выберите рекрутера или впишите нового');
     b.disabled = true; b.innerHTML = '<span class="spin"></span>';
     try { if (arrived && !await confirmP('Добавить ' + ADD.name + ' сразу со статусом «Доехал»?')) { b.disabled = false; b.textContent = 'Добавить в долетевшие'; return; }
-      const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: aw.value, team: $('#at') ? $('#at').value : T[0] });
+      const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: recruiterName(), team: $('#at') ? $('#at').value : T[0] });
       if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; return; }
       saved(d); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; } };
