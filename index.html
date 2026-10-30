@@ -919,7 +919,7 @@ function showAdd(arrived = false) {
   app.innerHTML = '<div class="wrap"><div class="hero"><div class="name">' + (arrived ? 'Добавить в долетевшие' : 'Новый кандидат') + '</div><div class="meta">' + (arrived ? 'Уже доехавший кандидат · сразу статус «Доехал»' : 'Сразу попадёт «В работу»') + (T.length === 1 ? ' за «' + esc(T[0]) + '»' : '') + '</div></div>'
     + '<div class="sec"><div class="form" style="margin:0">'
     + '<label class="sub">ФИО<input id="an" autocomplete="off" value="' + esc(ADD.name || '') + '" placeholder="Как в паспорте" style="margin-top:4px"></label>'
-    + '<label class="sub">Телефон с кодом страны<input id="ap" inputmode="tel" value="' + esc(ADD.phone || '') + '" placeholder="+504 9998 8877" style="margin-top:4px"></label><div id="dup"></div>'
+    + '<label class="sub">Телефон с кодом страны<input id="ap" inputmode="tel" value="' + esc(ADD.phone || '') + '" placeholder="+504 9998 8877" style="margin-top:4px"></label><div id="phone-hint" class="sub hid">Для источника «Телеграм» телефон можно оставить пустым.</div><div id="dup"></div>'
     + '<label class="sub">Страна<select id="ac" style="margin-top:4px"><option value="">— выберите —</option>' + ME.countries.map(c => '<option value="' + esc(c) + '"' + (ADD.country === c ? ' selected' : '') + '>' + (ME.flagsEmo[c] || '🌍') + ' ' + esc(c) + '</option>').join('') + '<option value="*">Другая…</option></select></label>'
     + '<input id="acx" class="hid" placeholder="Страна по-английски, как в таблице">'
     + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
@@ -942,7 +942,7 @@ function showAdd(arrived = false) {
     finally { recruitersLoading = false; }
   };
   ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*');
-  as.onchange = () => { arbox.classList.toggle('hid', as.value !== 'Сарафанка'); $('#arpbox').classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value !== 'Сарафанка') $('#arp').checked = false; if (as.value === 'Сарафанка') loadRecruiters(); };
+  as.onchange = () => { $('#phone-hint').classList.toggle('hid', as.value !== 'Телеграм'); arbox.classList.toggle('hid', as.value !== 'Сарафанка'); $('#arpbox').classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value !== 'Сарафанка') $('#arp').checked = false; if (as.value === 'Сарафанка') loadRecruiters(); };
   ar.onchange = () => { aw.classList.toggle('hid', ar.value !== '*'); if (ar.value === '*') aw.focus(); };
   as.onchange();
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
@@ -962,12 +962,12 @@ function showAdd(arrived = false) {
   $('#an').onblur = () => $('#ap').onblur();
   $('#asv').onclick = async () => {
     const b = $('#asv'); ADD.name = $('#an').value.trim(); ADD.phone = $('#ap').value.trim(); ADD.country = ac.value === '*' ? acx.value.trim() : ac.value; ADD.src = as.value;
-    if (ADD.name.length < 2) return toast('Напишите ФИО'); if (ADD.phone.replace(/\D/g, '').length < 7) return toast('Нужен телефон с кодом страны'); if (!ADD.country) return toast('Выберите страну');
+    if (ADD.name.length < 2) return toast('Напишите ФИО'); if (!(ADD.src === 'Телеграм' && ADD.phone === '') && (ADD.phone.replace(/\D/g, '').length < 7 || ADD.phone.replace(/\D/g, '').length > 15)) return toast('Нужен телефон с кодом страны (7–15 цифр)'); if (!ADD.country) return toast('Выберите страну');
     if (ADD.src === 'Сарафанка' && !recruiterName()) return toast('Выберите рекрутера или впишите нового');
     b.disabled = true; b.innerHTML = '<span class="spin"></span>';
     try { if (arrived && !await confirmP('Добавить ' + ADD.name + ' сразу со статусом «Доехал»?')) { b.disabled = false; b.textContent = 'Добавить в долетевшие'; return; }
       const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: recruiterName(), recruiterPhone: $('#arp').checked, team: $('#at') ? $('#at').value : T[0] });
-      if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; return; }
+      if (d.dup) { showDup(d.dup); toast(ADD.phone ? 'Такой номер уже есть' : 'Такой кандидат уже есть'); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; return; }
       saved(d); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; } };
 }
