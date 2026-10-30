@@ -925,6 +925,7 @@ function showAdd(arrived = false) {
     + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label>'
     + '<div id="arbox" class="hid"><label class="sub">Рекрутер<select id="ar" style="margin-top:4px"><option value="">— выберите —</option><option value="*">+ Новый рекрутер</option></select></label><input id="aw" class="hid" placeholder="Имя нового рекрутера" style="margin-top:8px"></div>'
+    + '<label id="arpbox" class="sub hid"><input type="checkbox" id="arp"> Это общий телефон рекрутера, а не личный номер кандидата</label>'
     + (T.length > 1 ? '<label class="sub">Команда<select id="at" style="margin-top:4px">' + T.map(t => '<option value="' + esc(t) + '">' + ((ME.teamList.find(x => x.t === t) || {}).e || '') + ' ' + esc(t) + '</option>').join('') + '</select></label>' : '')
     + '<button class="b main" id="asv" style="margin-top:6px">' + (arrived ? 'Добавить в долетевшие' : 'Сохранить') + '</button></div></div></div>';
   const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw'), ar = $('#ar'), arbox = $('#arbox');
@@ -941,7 +942,7 @@ function showAdd(arrived = false) {
     finally { recruitersLoading = false; }
   };
   ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*');
-  as.onchange = () => { arbox.classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value === 'Сарафанка') loadRecruiters(); };
+  as.onchange = () => { arbox.classList.toggle('hid', as.value !== 'Сарафанка'); $('#arpbox').classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value !== 'Сарафанка') $('#arp').checked = false; if (as.value === 'Сарафанка') loadRecruiters(); };
   ar.onchange = () => { aw.classList.toggle('hid', ar.value !== '*'); if (ar.value === '*') aw.focus(); };
   as.onchange();
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
@@ -956,14 +957,16 @@ function showAdd(arrived = false) {
       catch(e) { toast(e.message); b.disabled = false; }
     }
   };
-  $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { const duplicate = await api('dup', { phone: v }); if ($('#ap') && $('#ap').value === v) showDup(duplicate); } catch (e) {} };
+  $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { const duplicate = await api('dup', { phone: v, name: $('#an').value, src: as.value, who: recruiterName(), recruiterPhone: $('#arp').checked, team: $('#at') ? $('#at').value : T[0] }); if ($('#ap') && $('#ap').value === v) showDup(duplicate); } catch (e) {} };
+  $('#arp').onchange = () => $('#ap').onblur();
+  $('#an').onblur = () => $('#ap').onblur();
   $('#asv').onclick = async () => {
     const b = $('#asv'); ADD.name = $('#an').value.trim(); ADD.phone = $('#ap').value.trim(); ADD.country = ac.value === '*' ? acx.value.trim() : ac.value; ADD.src = as.value;
     if (ADD.name.length < 2) return toast('Напишите ФИО'); if (ADD.phone.replace(/\D/g, '').length < 7) return toast('Нужен телефон с кодом страны'); if (!ADD.country) return toast('Выберите страну');
     if (ADD.src === 'Сарафанка' && !recruiterName()) return toast('Выберите рекрутера или впишите нового');
     b.disabled = true; b.innerHTML = '<span class="spin"></span>';
     try { if (arrived && !await confirmP('Добавить ' + ADD.name + ' сразу со статусом «Доехал»?')) { b.disabled = false; b.textContent = 'Добавить в долетевшие'; return; }
-      const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: recruiterName(), team: $('#at') ? $('#at').value : T[0] });
+      const d = await api(arrived ? 'addarrived' : 'add', { name: ADD.name, phone: ADD.phone, country: ADD.country, pass: ADD.pass || 'Не указан', src: ADD.src, who: recruiterName(), recruiterPhone: $('#arp').checked, team: $('#at') ? $('#at').value : T[0] });
       if (d.dup) { showDup(d.dup); toast('Такой номер уже есть'); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; return; }
       saved(d); }
     catch (e) { hap('error'); toast(e.message); b.disabled = false; b.innerHTML = arrived ? 'Добавить в долетевшие' : 'Сохранить'; } };
