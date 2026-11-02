@@ -379,7 +379,7 @@ function loadList(force) {                                  // один запр
   return LISTP;
 }
 let STAFF_AWARDS = lsGet('staffAwards') || {byName:{},byNick:{}};
-let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', show: 'act', filtersOpen: false }, stack = [], boardTimer = null;
+let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', country: '', show: 'act', filtersOpen: false }, stack = [], boardTimer = null;
 
 function staffName(value) {
   const raw=String(value==null?'':value),base=raw.replace(/(?:\s*(?:🎖️?|🏆|🥇|💎|👑))+$/u,'');
@@ -533,6 +533,21 @@ function tripHtml(c, labels) { const n = tripStep(c), cls = c.st === 'Доеха
   return '<div class="trip' + cls + '">' + L.map((x, i) => '<i class="' + (i + 1 < n ? 'p' : i + 1 === n ? 'c' : '') + '"></i>').join('') + '</div>'
     + (labels ? '<div class="trip-l">' + L.map((x, i) => '<span class="' + (i + 1 === n ? 'c' : '') + '">' + x + '</span>').join('') + '</div>' : ''); }
 function flagSet(c) { return (c.fl || []).map(f => (ME.flags[f] || [''])[0]).join(''); }
+function candidateTeamMatches(c) {
+  const f = S.f;
+  if (f === 'x' && c.t) return false;
+  if (f === 'mine' && !candidateDefaultTeams().includes(c.t)) return false;
+  if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
+  return true;
+}
+function candidateCountries() {
+  return [...new Set(LIST.filter(candidateTeamMatches).map(c => String(c.c || '')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+}
+function countryOptionsHtml(countries) {
+  const selected = S.country;
+  const count = country => { S.country = country; const n = LIST.filter(matches).length; S.country = selected; return n; };
+  return '<option value="">Все страны · ' + count('') + '</option>' + countries.map(country => '<option value="' + esc(country) + '"' + (country === selected ? ' selected' : '') + '>' + esc((ME.flagsEmo[country] || '🌍') + ' ' + country) + ' · ' + count(country) + '</option>').join('');
+}
 function matches(c) {
   if (focusAllowed() && focusKeys().includes(c.k)) return false;
   const f = S.f, act = c.st === 'В работе' || c.st === 'В пути';
@@ -541,9 +556,8 @@ function matches(c) {
   if (S.show === 'arch' && c.st !== 'Архив') return false;
   if (S.cm === 'yes' && !c.teamCm) return false;
   if (S.cm === 'no' && c.teamCm) return false;
-  if (f === 'x' && c.t) return false;
-  if (f === 'mine' && !candidateDefaultTeams().includes(c.t)) return false;
-  if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
+  if (!candidateTeamMatches(c)) return false;
+  if (S.country && String(c.c || '') !== S.country) return false;
   if (f === 'fl' && !(c.fl || []).length) return false;
   if (f === 'road' && c.st !== 'В пути') return false;
   if (S.pf === 'pass' && c.pass !== 'Да') return false;
@@ -557,6 +571,8 @@ async function showList(reload) {
   if (LIST.length && LDIRTY && !reload) { LDIRTY = false;
     loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
+  const countries = candidateCountries();
+  if (S.country && !countries.includes(S.country)) S.country = '';
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.moderator || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(candidateDefaultTeams().length > 1 ? [['mine', 'Мои команды']] : [], teams, [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
   const isOn = k => ['pass','nopass'].includes(k) ? S.pf === k : k === 'a' ? S.f === 'a' && !S.pf : S.f === k;
@@ -566,20 +582,22 @@ async function showList(reload) {
   const stages = [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']];
   const stageCount = stage => { const old = S.show; S.show = stage; const n = LIST.filter(matches).length; S.show = old; return n; };
   const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев']];
-  const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm);
-  const summary = [S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
+  const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm) + Number(!!S.country);
+  const summary = [S.country || '', S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
   app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Поиск" aria-label="Поиск кандидатов по имени, телефону, комментариям, вопросам и тратам" value="' + esc(S.q) + '">'
     + '<div id="search-status" class="sub" role="status"></div>'
     + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
     + '<div class="chips">' + F.map(x => '<button class="chip' + (isOn(x[0]) ? ' on' : '') + '" aria-pressed="' + isOn(x[0]) + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
+    + '<label class="sub" style="display:block;margin:10px 0">Страна<select id="country-filter" style="margin-top:4px" aria-label="Страна кандидата">' + countryOptionsHtml(countries) + '</select></label>'
     + '<div class="chips">' + stages.map(x => '<button class="chip' + (S.show === x[0] ? ' on' : '') + '" aria-pressed="' + (S.show === x[0]) + '" data-s="' + x[0] + '">' + x[1] + '<b>' + stageCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="chips">' + commentFilters.map(x => '<button class="chip' + (S.cm === x[0] ? ' on' : '') + '" data-cm="' + x[0] + '">' + x[1] + '<b>' + cmCount(x[0]) + '</b></button>').join('') + '</div>'
     + '<div class="filter-foot"><span id="filter-results">Кандидатов: ' + items.length + '</span><button class="ghost" id="filter-reset">Сбросить</button></div></div></details></div>'
     + '<div class="wrap">' + (S.show === 'act' && leoCommentsAllowed() ? '<div class="sec"><button type="button" class="b main" id="leo-next" style="width:100%">Дать кандидата →</button><div class="sub" style="margin-top:8px">Нужно обновить: ' + leoCommentQueue().length + ' · сначала без комментариев, затем самые давние</div></div>' : '') + '<div id="team-issues">' + (S.show === 'act' ? teamIssuesHtml() : '') + '</div><div id="wabox"></div><div id="cm-reminders">' + (S.show === 'act' ? cmReminderHtml() : '') + '</div><div class="board" id="items">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Никого нет — смените фильтр</div>') + '</div><div id="far"></div></div>';
   if ($('#leo-next')) $('#leo-next').onclick = () => { S.leoQueue = true; showLeoQueue(); window.scrollTo(0, 0); };
   $('#filters').ontoggle = e => { S.filtersOpen = e.currentTarget.open; };
-  $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
+  $('#filter-reset').onclick = () => { S.f = 'a'; S.pf = ''; S.country = ''; S.show = 'act'; S.cm = ''; S.filtersOpen = true; showList(); };
+  $('#country-filter').onchange = e => { S.country = e.target.value; showList(); };
   $('#rl').onclick = () => { WA = null; showList(true); };
   $('#add').onclick = () => { stack.push({ kind: 'add' }); render(); };
   const q = $('#q');
@@ -590,6 +608,7 @@ async function showList(reload) {
     app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f));
     app.querySelectorAll('[data-s]').forEach(b => b.querySelector('b').textContent = stageCount(b.dataset.s));
     $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length;
+    $('#country-filter').innerHTML = countryOptionsHtml(countries);
     const status = $('#search-status'); if (status) status.textContent = CSEARCH.loading ? 'Ищу в комментариях, вопросах и тратах…' : CSEARCH.error ? 'Поиск по истории не удался. ' + CSEARCH.error : '';
     bindItems(); bindQuickComments(); farBtn();
   };
