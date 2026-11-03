@@ -160,6 +160,7 @@ input,textarea,select{transition:border-color 160ms ease}
 .cm-reminder h2{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .cm-reminder h2 small{color:var(--bad);flex:none}
 .cm-reminder .name{margin:12px 0 4px}
+.cm-reminder .cm-card-link{display:block;width:100%;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
 .cm-reminder .acts{margin-top:10px}
 .cm-editor{animation:ui-enter 160ms ease-out}
 .cm-editor textarea{margin:10px 0 8px;min-height:85px;font-size:16px}
@@ -1445,7 +1446,7 @@ function cmReminderHtml() {
   const c = pending.find(c => c.k === CM_PICK) || pending[0]; CM_PICK = c.k;
   const pulse = CM_PULSE ? '' : ' cm-attention'; CM_PULSE = true;
   return '<div class="sec cm-reminder' + pulse + '"><h2>✍️ Нужен комментарий <small>' + pending.length + '</small></h2><div class="sub">Кандидаты вашей команды · обновление раз в сутки</div>'
-    + '<div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><div class="sub">' + esc(c.t) + '</div><div class="warn" style="margin-top:7px">' + cmReason(c) + '</div>'
+    + '<button type="button" class="name cm-card-link" data-cm-card="' + esc(c.k) + '" aria-label="Открыть карточку: ' + esc(c.n) + '">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</button><div class="sub">' + esc(c.t) + '</div><div class="warn" style="margin-top:7px">' + cmReason(c) + '</div>'
     + (CM_OPEN === c.k && CM_PLACE === 'banner' ? cmEditor(c, 'banner') : '<div class="acts"><button class="b main" data-cm-open="' + esc(c.k) + '" data-place="banner">✍️ Написать</button>'
       + (pending.length > 1 ? '<button class="b" data-cm-next>Следующий</button>' : '') + '</div>') + '</div>';
 }
@@ -1460,6 +1461,7 @@ function cmQuickHtml(c) {
 function cmListVisible() { return (S.tab === 'list' || S.tab === 'focus') && !stack.length; }
 function cmRedraw() { if (cmListVisible()) { const y = window.scrollY; S.tab === 'focus' ? showFocus() : showList(); window.scrollTo(0, y); } }
 function bindQuickComments() {
+  app.querySelectorAll('[data-cm-card]').forEach(b => b.onclick = () => { S.ly = window.scrollY; stack.push({kind:'card',k:b.dataset.cmCard}); render(); });
   app.querySelectorAll('[data-leo-wa]').forEach(b => b.onclick = () => { if (!leoCommentsAllowed() || !b.dataset.leoWa) return; const url = 'https://wa.me/' + b.dataset.leoWa; tg ? tg.openLink(url) : window.open(url, '_blank', 'noopener'); });
   app.querySelectorAll('[data-cm-open]').forEach(b => b.onclick = () => {
     CM_OPEN = b.dataset.cmOpen; CM_PLACE = b.dataset.place; if (CM_PLACE === 'banner') CM_PICK = CM_OPEN;
