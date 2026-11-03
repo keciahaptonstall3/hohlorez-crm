@@ -943,26 +943,49 @@ function showAdd(arrived = false) {
     + '<input id="acx" class="hid" placeholder="Страна по-английски, как в таблице">'
     + '<div class="sub">Загранпаспорт</div><div class="seg">' + [['Да', 'Есть'], ['Нет', 'Нет'], ['Не указан', 'Не знаю']].map(x => '<button class="chip' + ((ADD.pass || 'Не указан') === x[0] ? ' on' : '') + '" data-p="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>'
     + '<label class="sub">Откуда<select id="as" style="margin-top:4px">' + opt(ME.srcs, ADD.src || 'Прозвон') + '</select></label>'
-    + '<div id="arbox" class="hid"><label class="sub">Рекрутер<select id="ar" style="margin-top:4px"><option value="">— выберите —</option><option value="*">+ Новый рекрутер</option></select></label><input id="aw" class="hid" placeholder="Имя нового рекрутера" style="margin-top:8px"></div>'
+    + '<div id="arbox" class="hid"><label class="sub">Рекрутер<select id="ar" style="margin-top:4px"><option value="">— выберите —</option><option value="*">+ Новый рекрутер</option></select></label><input id="aw" class="hid" placeholder="Имя нового рекрутера" style="margin-top:8px"><div id="recruiter-phone-hint" class="sub" role="status" aria-live="polite" style="margin-top:6px"></div></div>'
     + '<label id="arpbox" class="sub hid"><input type="checkbox" id="arp"> Это общий телефон рекрутера, а не личный номер кандидата</label>'
     + (T.length > 1 ? '<label class="sub">Команда<select id="at" style="margin-top:4px">' + T.map(t => '<option value="' + esc(t) + '">' + ((ME.teamList.find(x => x.t === t) || {}).e || '') + ' ' + esc(t) + '</option>').join('') + '</select></label>' : '')
     + '<button class="b main" id="asv" style="margin-top:6px">' + (arrived ? 'Добавить в долетевшие' : 'Сохранить') + '</button></div></div></div>';
   const ac = $('#ac'), acx = $('#acx'), as = $('#as'), aw = $('#aw'), ar = $('#ar'), arbox = $('#arbox');
   const recruiterName = () => (ar.value === '*' ? aw.value : ar.value).trim();
-  let recruitersLoading = false, recruitersLoaded = false;
-  const loadRecruiters = async () => {
-    if (recruitersLoading || recruitersLoaded) return;
-    recruitersLoading = true;
-    try { const names = await api('recruiters'); if (!ar.isConnected) return;
-      const selected = ar.value;
-      ar.innerHTML = '<option value="">— выберите —</option>' + names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '<option value="*">+ Новый рекрутер</option>';
-      ar.value = selected; recruitersLoaded = true;
-    } catch(e) { if (ar.isConnected) toast('Список не загрузился. Можно внести нового рекрутера.'); }
-    finally { recruitersLoading = false; }
+  let recruitersLoaded = false, recruitersRequest = null, recruiterNames = [], recruiterMatches = [];
+  let recruiterManual = false, autoRecruiter = '', recruiterLookupSeq = 0, recruiterTimer;
+  const drawRecruiters = () => {
+    const selected = ar.value, matched = new Set(recruiterMatches);
+    const options = names => names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+    ar.innerHTML = '<option value="">— выберите —</option>' + (recruiterMatches.length ? '<optgroup label="По этому номеру">' + options(recruiterMatches) + '</optgroup>' : '') + options(recruiterNames.filter(n => !matched.has(n))) + '<option value="*">+ Новый рекрутер</option>';
+    ar.value = selected;
   };
+  const loadRecruiters = () => {
+    if (recruitersLoaded) return Promise.resolve();
+    if (recruitersRequest) return recruitersRequest;
+    recruitersRequest = (async () => {
+      try { const names = await api('recruiters'); if (!ar.isConnected) return;
+        recruiterNames = names; recruitersLoaded = true; drawRecruiters();
+      } catch(e) { if (ar.isConnected) toast('Список не загрузился. Можно внести нового рекрутера.'); }
+      finally { recruitersRequest = null; }
+    })();
+    return recruitersRequest;
+  };
+  const lookupRecruiter = async () => {
+    const seq = ++recruiterLookupSeq, phone = $('#ap').value, digits = phone.replace(/\D/g,''), hint = $('#recruiter-phone-hint');
+    if (autoRecruiter && ar.value === autoRecruiter) { ar.value = ''; autoRecruiter = ''; }
+    recruiterMatches = []; drawRecruiters(); hint.textContent = '';
+    if (as.value !== 'Сарафанка' || digits.length < 7 || digits.length > 15) return;
+    try {
+      await loadRecruiters(); if (!ar.isConnected || seq !== recruiterLookupSeq) return;
+      const names = await api('recruiters', {lookupPhone:true,phone:phone});
+      if (!ar.isConnected || seq !== recruiterLookupSeq || as.value !== 'Сарафанка' || $('#ap').value !== phone) return;
+      recruiterMatches = names; drawRecruiters();
+      if (names.length === 1 && !recruiterManual) { ar.value = names[0]; autoRecruiter = names[0]; aw.classList.add('hid'); }
+      hint.textContent = names.length > 1 ? 'Номер связан с несколькими рекрутерами — выберите нужного.' : names.length === 1 ? 'По этому номеру найден рекрутер: ' + names[0] : '';
+    } catch(e) { if (ar.isConnected && seq === recruiterLookupSeq) hint.textContent = 'Не удалось проверить номер. Можно выбрать рекрутера вручную.'; }
+  };
+  const scheduleRecruiterLookup = () => { ++recruiterLookupSeq; if (autoRecruiter && ar.value === autoRecruiter) { ar.value = ''; autoRecruiter = ''; } recruiterMatches = []; drawRecruiters(); $('#recruiter-phone-hint').textContent = ''; clearTimeout(recruiterTimer); recruiterTimer = setTimeout(() => { if (ar.isConnected) lookupRecruiter(); },350); };
   ac.onchange = () => acx.classList.toggle('hid', ac.value !== '*');
-  as.onchange = () => { $('#phone-hint').classList.toggle('hid', as.value !== 'Телеграм'); arbox.classList.toggle('hid', as.value !== 'Сарафанка'); $('#arpbox').classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value !== 'Сарафанка') $('#arp').checked = false; if (as.value === 'Сарафанка') loadRecruiters(); };
-  ar.onchange = () => { aw.classList.toggle('hid', ar.value !== '*'); if (ar.value === '*') aw.focus(); };
+  as.onchange = () => { $('#phone-hint').classList.toggle('hid', as.value !== 'Телеграм'); arbox.classList.toggle('hid', as.value !== 'Сарафанка'); $('#arpbox').classList.toggle('hid', as.value !== 'Сарафанка'); if (as.value !== 'Сарафанка') $('#arp').checked = false; if (as.value === 'Сарафанка') loadRecruiters(); scheduleRecruiterLookup(); };
+  ar.onchange = () => { recruiterManual = true; autoRecruiter = ''; ++recruiterLookupSeq; aw.classList.toggle('hid', ar.value !== '*'); if (ar.value === '*') aw.focus(); };
   as.onchange();
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { ADD.pass = b.dataset.p; app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
   const saved = d => { hap(); toast(arrived ? 'Добавлен в долетевшие' : 'Кандидат добавлен'); ADD = {}; LDIRTY = true; if (arrived) { S.at = ''; S.aq = ''; } stack.pop(); stack.push({kind:'card', k:d.k}); render(); };
@@ -977,6 +1000,7 @@ function showAdd(arrived = false) {
     }
   };
   $('#ap').onblur = async () => { const v = $('#ap').value; if (v.replace(/\D/g, '').length < 7) return showDup(null); try { const duplicate = await api('dup', { phone: v, name: $('#an').value, src: as.value, who: recruiterName(), recruiterPhone: $('#arp').checked, team: $('#at') ? $('#at').value : T[0] }); if ($('#ap') && $('#ap').value === v) showDup(duplicate); } catch (e) {} };
+  $('#ap').oninput = scheduleRecruiterLookup;
   $('#arp').onchange = () => $('#ap').onblur();
   $('#an').onblur = () => $('#ap').onblur();
   $('#asv').onclick = async () => {
