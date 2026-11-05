@@ -39,7 +39,7 @@ function doPost(e) {
   try { b = JSON.parse(e.postData.contents); } catch (x) {}
   if (b.update_id !== undefined) {
     try { tgUpdate_(b); } catch (x) { console.error(x && x.stack || x); }
-    return ContentService.createTextOutput('ok');
+    return;   // без ответа Apps Script отдаёт 200; ContentService дал бы 302, и Telegram застревает на повторах одного апдейта
   }
   let out;
   try { out = { d: api_(auth_(b.init), b.op, b.a || {}) }; } catch (x) { out = { err: String(x && x.message || x) }; }
