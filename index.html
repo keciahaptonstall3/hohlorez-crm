@@ -827,7 +827,7 @@ async function waNext(k, n) {                                 // «диалог�
   const id = await popup('Диалога нет', n + ': что дальше?', [{ id: 'r', type: 'default', text: '🔁 Перезвонить' }, { id: 'w', type: 'default', text: '⏳ Ещё пишем' }, { id: 'z', type: 'destructive', text: '🗄 В архив' }]);
   if (!id) { toast('Не решили — через сутки бот сам вернёт на перезвон'); return; }
   try { const R = await api('wano', { k: k, a: id }); hap(); LDIRTY = true;
-    if (R.recall) { const d = await popup('Перезвон', 'Когда перезвонить?', [{ id: '1', type: 'default', text: 'Завтра' }, { id: '2', type: 'default', text: 'Послезавтра' }, { id: '0', type: 'default', text: 'Через 3 часа' }]);
+    if (R.recall) { const d = await popup('Перезвон', 'Когда перезвонить?', [{ id: '1', type: 'default', text: 'Завтра' }, { id: '2', type: 'default', text: 'Послезавтра' }, { id: '0', type: 'default', text: 'Без даты' }]);
       if (d) { const t = await api('recall', { k: k, d: d }); toast('Перезвон: ' + t); return; } }
     toast(R.txt); } catch (e) { hap('error'); toast(e.message); }
 }
