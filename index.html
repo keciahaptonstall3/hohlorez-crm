@@ -446,9 +446,11 @@ function candidateDefaultTeams() {
   return ME.u === 'wrkinrussia' ? ['Команда 4'] : ME.boss ? [] : ME.teams || [];
 }
 function applyCandidateDefaults() {
-  if (!ME || S.defaultUser === ME.u) return;
+  if (!ME) return;
+  const defaultKey = ME.u + ':' + ME.teamList.map(t => t.t).join('|');
+  if (S.defaultUser === defaultKey) return;
   const teams = candidateDefaultTeams(), i = ME.teamList.findIndex(t => t.t === teams[0]);
-  S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = ME.u;
+  S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = defaultKey;
 }
 function render() {
   clearInterval(boardTimer); clearInterval(callTimer);
@@ -538,7 +540,7 @@ function candidateTeamMatches(c) {
   const f = S.f;
   if (f === 'x' && c.t) return false;
   if (f === 'mine' && !candidateDefaultTeams().includes(c.t)) return false;
-  if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)].t) return false;
+  if (/^t\d$/.test(f) && c.t !== ME.teamList[+f.slice(1)]?.t) return false;
   return true;
 }
 function candidateCountries() {
@@ -780,7 +782,7 @@ function takeHtml(L) {
   if (!L.fresh) return '<div class="acts tk"><button class="b" data-open="' + esc(L.k) + '">Открыть карточку</button></div>';
   if (L.busy) return '<div class="warn tk">🔒 Заявку сейчас прозванивает ' + esc(L.busy) + '</div>';
   return '<div class="acts tk">' + ME.takeTeams.map(t => { const i = ME.teamList.findIndex(x => x.t === t);
-    return '<button class="b main" data-take="' + esc(L.k) + '" data-t="' + i + '">✋ Взять в работу' + (ME.takeTeams.length > 1 ? ' · ' + ME.teamList[i].e + ' ' + esc(t) : '') + '</button>'; }).join('') + '</div>';
+    return '<button class="b main" data-take="' + esc(L.k) + '" data-t="' + (ME.teamList[i].code ?? i) + '">✋ Взять в работу' + (ME.takeTeams.length > 1 ? ' · ' + ME.teamList[i].e + ' ' + esc(t) : '') + '</button>'; }).join('') + '</div>';
 }
 function bindLeads(root) {
   root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { stack.push({ kind: 'card', k: b.dataset.open }); render(); });
@@ -1068,7 +1070,7 @@ async function showCard(k, keep) {                          // keep — обно
     if (c.st !== 'Архив' && c.st !== 'Доехал') A.push(['z', 'В архив', 'bad']);
   }
   if (ME.boss && c.st === 'Архив') A.push(['restore', '↩️ Вернуть в работу', '']);
-  if (!c.t && c.st !== 'Архив') ME.teamList.forEach((t, i) => { if (ME.teams.indexOf(t.t) >= 0) A.push(['c' + i, 'Забрать в ' + t.e + ' ' + t.t.toLowerCase(), 'main']); });
+  if (!c.t && c.st !== 'Архив') ME.teamList.forEach((t, i) => { if (ME.teams.indexOf(t.t) >= 0) A.push(['c' + (t.code ?? i), 'Забрать в ' + t.e + ' ' + t.t.toLowerCase(), 'main']); });
   if (ME.boss && c.st !== 'Архив') A.push(['g', 'Передать другой команде', '']);
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
@@ -1216,7 +1218,7 @@ function bindCard(c) {
     if (s === 't' && !requireFlightComment()) return;
     if (s === 'z') { const id = await popup('В архив', 'Причина?', ME.arch.map((x, i) => ({ id: 'z' + i, type: i === 0 ? 'destructive' : 'default', text: x })).concat([{ type: 'cancel' }]));
       if (id && /^z\d$/.test(id)) run(b, 'stage', { s: id }, 'В архиве'); return; }
-    if (s === 'g') { const id = await popup('Передать', 'Какой команде?', ME.teamList.map((t, i) => ({ id: 'G' + i, type: 'default', text: t.e + ' ' + t.t })).filter(x => ME.teamList[+x.id.slice(1)].t !== c.t).concat([{ type: 'cancel' }]));
+    if (s === 'g') { const id = await popup('Передать', 'Какой команде?', ME.teamList.map((t, i) => ({ id: 'G' + (t.code ?? i), type: 'default', text: t.e + ' ' + t.t, team: t.t })).filter(x => x.team !== c.t).concat([{ type: 'cancel' }]));
       if (id && /^G\d$/.test(id)) run(b, 'stage', { s: id }, 'Передан'); return; }
     if (s === 'd' && !(await confirmP('Подтвердить, что ' + c.n + ' доехал? В чаты уйдёт поздравление.'))) return;
     if (s === 'back' && !(await confirmP('Вернуть ' + c.n + ' на предыдущий этап? Если сейчас этап «Вылет», дата вылета будет снята.'))) return;
