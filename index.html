@@ -1288,7 +1288,7 @@ function dashTeamHtml(t) {
   return '<div class="dash-team"><div class="dash-team-head"><span>'+esc(t.emoji+' '+t.id)+'</span><button data-dteam="'+esc(t.id)+'">Выбрать →</button></div><div class="dash-stack" role="img" aria-label="В работе '+p.work+', в пути '+p.road+', доехали '+p.done+', архив '+p.archive+'">'+[p.work,p.road,p.done,p.archive].map((v,i)=>'<i style="width:'+(total?v/total*100:0)+'%;background:'+DASH_COLORS[i]+'"></i>').join('')+'</div><div class="dash-stats"><span><b>'+m.calls+'</b>звонков</span><span><b>'+m.wa+'</b>апрувов WA</span><span><b>'+m.arrivals+'</b>доехали за период</span></div><div class="dash-meta">В путь: '+m.departures+' · расходы '+money(m.spend)+' · на архив '+money(m.loss)+'</div><div class="dash-meta">Из новых доехали: '+co.arrived+' / '+co.entered+' · '+dashPct(co.arrived,co.entered)+'</div>'+(S.dp==='month'&&!S.doff&&t.plan?'<div class="dash-goal"><header><span>План доездов за месяц</span><b>'+m.arrivals+' / '+t.plan+'</b></header>'+dashBar('',m.arrivals,t.plan,'var(--arr)',' ' )+'</div>':'')+'</div>';
 }
 const CRM_STAFF = {
-  maxx2112:{name:'Максим',role:'caller'},hklmo2:{name:'Армандо',role:'caller'},luis_albertomm:{name:'Луис',role:'caller'},
+  maxx2112:{name:'Максим',role:'caller'},jenarocopo:{name:'@jenarocopo',role:'caller'},
   contractrussia2:{name:'Володя',role:'manager'},saygoida:{name:'Лео',role:'manager'},wrkinrussia:{name:'Саня',role:'manager'},workandtravel696:{name:'Даня',role:'manager'}
 };
 function dashPeopleHtml(people) {
