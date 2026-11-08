@@ -804,6 +804,7 @@ function bindLeads(root) {
 let WA = null;
 async function waBox() {
   const el = $('#wabox'); if (!el) return;
+  if(ME.u==='jenarocopo'){WA=[];el.innerHTML='';return;}
   try { if (!WA) WA = await api('wa'); } catch (e) { return; }
   if (!$('#wabox')) return;
   if (ME.u === 'mster_karabas') { el.innerHTML = ''; const summary = $('#team-issues'); if (summary) summary.innerHTML = teamIssuesHtml(); return; }
