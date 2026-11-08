@@ -169,6 +169,9 @@ input,textarea,select{transition:border-color 160ms ease}
 .cm-quick .b{padding:8px 11px;font-size:13px;color:var(--amber)}
 .item-wrap+.item-wrap{border-top:1px solid var(--line)}
 .item-wrap .item{border-top:0}
+.added-by-me{border-left:3px solid var(--amber);background:linear-gradient(90deg,rgba(244,183,64,.12),rgba(244,183,64,.025) 80%)}
+.item-wrap.added-by-me .item,.item.added-by-me{padding-left:13px}
+.added-tag{display:inline-flex;padding:2px 7px;margin:3px 5px 4px 0;border-radius:7px;background:rgba(244,183,64,.14);color:#f4c56d;font-size:11px;font-weight:600}
 .focus-row-action{display:flex;justify-content:flex-end;padding:0 16px 10px}
 .attachment-row{display:flex;align-items:center;gap:8px}.attachment-info{flex:1;min-width:0;overflow-wrap:anywhere}.attachment-delete{flex:none;width:44px;height:44px;color:var(--bad);font-size:22px;border-radius:10px}.attachment-delete:active{background:var(--raise)}
 .focus-toggle{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:13px;background:var(--raise);color:var(--muted);padding:6px 12px;font:500 12px var(--body)}
@@ -636,8 +639,8 @@ function arrivedItems(team, archived = false, category = '') {
 }
 function arrivedItemHtml(c, archived = false) {
   const team = ME.teamList.find(t => t.t === c.t), meta = [team ? team.e + ' ' + team.t : c.t || 'Без команды', c.c, c.ph, c.sp ? money(c.sp) : ''];
-  return '<button class="item" data-arrived-key="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><span style="color:var(--' + (archived ? 'muted' : 'arr') + ')">' + (archived ? '🗄 Архив' : '✅ Доехал') + '</span>'
-    + '<div class="meta" style="grid-column:1/-1">' + meta.filter(Boolean).map(esc).join(' · ') + '</div>' + (archived ? '<div class="sub" style="grid-column:1/-1">Категория: ' + esc(archiveCategory(c)) + '</div>' : '') + tripHtml(c)
+  return '<button class="item' + (c.addedByMe === true ? ' added-by-me' : '') + '" data-arrived-key="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '</div><span style="color:var(--' + (archived ? 'muted' : 'arr') + ')">' + (archived ? '🗄 Архив' : '✅ Доехал') + '</span>'
+    + '<div class="meta" style="grid-column:1/-1">' + creatorBadgeHtml(c) + meta.filter(Boolean).map(esc).join(' · ') + '</div>' + (archived ? '<div class="sub" style="grid-column:1/-1">Категория: ' + esc(archiveCategory(c)) + '</div>' : '') + tripHtml(c)
     + (c.cm ? '<div class="cm"><em>' + staffHtml(c.cm[1]) + ', ' + fmt(c.cm[0], 'd') + ':</em> ' + esc(c.cm[2]) + '</div>' : '') + '</button>';
 }
 async function showArrived(reload, archived = false) {
@@ -701,13 +704,14 @@ function refreshFlightCountdowns() {
 }
 setInterval(refreshFlightCountdowns, 60000);
 document.addEventListener('visibilitychange', refreshFlightCountdowns);
+function creatorBadgeHtml(c) { return c.addedByMe === true ? '<span class="added-tag">Вы добавили</span><br>' : ''; }
 function itemHtml(c) {
   const te = (ME.teamList.find(t => t.t === c.t) || {}).e || '❔';
   const bits = [c.st === 'В работе' ? '' : c.st, te + ' ' + (c.t ? c.t.replace('Команда ', 'команда ') : 'без команды'), 'документы ' + c.docs.length + '/' + candidateDocs(c).length];
   if (c.fly) bits.push('вылет ' + fmt(c.fly, 'd')); if (c.sp) bits.push(money(c.sp));
-  return '<div class="item-wrap"><button class="item" data-k="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '<span class="flags">' + flagSet(c) + '</span>' + flightCountdownHtml(c) + '</div>'
+  return '<div class="item-wrap' + (c.addedByMe === true ? ' added-by-me' : '') + '"><button class="item" data-k="' + esc(c.k) + '"><div class="name">' + (ME.flagsEmo[c.c] || '🌍') + ' ' + esc(c.n) + '<span class="flags">' + flagSet(c) + '</span>' + flightCountdownHtml(c) + '</div>'
     + '<div class="days"><b>' + (c.days || 0) + '</b><span>' + (c.days === 1 ? 'день' : c.days >= 2 && c.days <= 4 ? 'дня' : 'дней') + '</span></div>'
-    + '<div class="meta">' + bits.filter(Boolean).map(esc).join(', ') + '</div>'
+    + '<div class="meta">' + creatorBadgeHtml(c) + bits.filter(Boolean).map(esc).join(', ') + '</div>'
     + (activeCandidate(c) && budgetExhausted(c) ? '<div class="warn" style="grid-column:1/-1">🚨 Бюджет: ' + money(c.sp) + ' из ' + money(ME.limit) + '</div>' : '')
     + (c.miss ? '<div class="warn" style="grid-column:1/-1">Не хватает: ' + c.miss.map(x => esc(docName(x))).join(', ') + '</div>' : '')
     + tripHtml(c)
