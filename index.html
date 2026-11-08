@@ -539,6 +539,10 @@ function tripHtml(c, labels) { const n = tripStep(c), cls = c.st === 'Доеха
   return '<div class="trip' + cls + '">' + L.map((x, i) => '<i class="' + (i + 1 < n ? 'p' : i + 1 === n ? 'c' : '') + '"></i>').join('') + '</div>'
     + (labels ? '<div class="trip-l">' + L.map((x, i) => '<span class="' + (i + 1 === n ? 'c' : '') + '">' + x + '</span>').join('') + '</div>' : ''); }
 function flagSet(c) { return (c.fl || []).map(f => (ME.flags[f] || [''])[0]).join(''); }
+function commentOlderThanDay(c, now = Date.now()) {
+  const ts = c.cm ? Number(c.cm[0]) : Number(c.start);
+  return Number.isFinite(ts) && ts > 0 && now - ts > 864e5;
+}
 function candidateTeamMatches(c) {
   const f = S.f;
   if (f === 'x' && c.t) return false;
@@ -562,6 +566,7 @@ function matches(c) {
   if (S.show === 'arch' && c.st !== 'Архив') return false;
   if (S.cm === 'yes' && !c.teamCm) return false;
   if (S.cm === 'no' && c.teamCm) return false;
+  if (S.cm === 'stale' && !commentOlderThanDay(c)) return false;
   if (!candidateTeamMatches(c)) return false;
   if (S.country && String(c.c || '') !== S.country) return false;
   if (f === 'fl' && !(c.fl || []).length) return false;
@@ -587,7 +592,7 @@ async function showList(reload) {
   const items = LIST.filter(matches).sort((a, b) => (b.st === 'В пути') - (a.st === 'В пути') || (b.fl || []).length - (a.fl || []).length || b.days - a.days);
   const stages = [['act', 'В работе и в пути'], ['done', 'Доехали'], ['arch', 'Архив']];
   const stageCount = stage => { const old = S.show; S.show = stage; const n = LIST.filter(matches).length; S.show = old; return n; };
-  const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев']];
+  const commentFilters = [['yes', 'С комментариями'], ['no', 'Без комментариев'], ['stale', 'Больше суток без комментария']];
   const activeFilters = Number(S.f !== 'a') + Number(!!S.pf) + Number(S.show !== 'act') + Number(!!S.cm) + Number(!!S.country);
   const summary = [S.country || '', S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
   app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
