@@ -1097,6 +1097,12 @@ async function showCard(k, keep, savedScope) {
   if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c); observeBudgetCard(c);
 }
+function normalizeRelativePhone(value) {
+  // Pasted contacts can contain invisible direction/format marks or typographic separators.
+  return String(value || '').normalize('NFKC')
+    .replace(/[\u00ad\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '')
+    .replace(/[\u2010-\u2015\u2212]/g, '-').trim();
+}
 async function showRelatives(route) {
   const active = () => stack[stack.length - 1] === route;
   app.innerHTML = '<div class="wrap"><div class="empty"><span class="spin"></span></div></div>';
@@ -1128,6 +1134,8 @@ async function showRelatives(route) {
       $('#rel-cancel').onclick = () => { if (!busy) { draft = null; draw(); } };
       form.onsubmit = async e => {
         e.preventDefault(); if (busy) return; capture();
+        draft.phone = normalizeRelativePhone(draft.phone);
+        $('#rel-phone').value = draft.phone;
         const digits = draft.phone.replace(/\D/g,'');
         if (!draft.name.trim() || !draft.relation.trim()) { $('#rel-error').textContent = 'Заполните имя и родство'; return; }
         if (!/^[+\d\s().-]+$/.test(draft.phone) || digits.length < 7 || digits.length > 15) { $('#rel-error').textContent = 'Укажите телефон с кодом страны, от 7 до 15 цифр'; return; }
