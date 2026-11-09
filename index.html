@@ -358,6 +358,23 @@ input,textarea,select{transition:border-color 160ms ease}
 .search-hits .match-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;color:var(--muted);font-size:12px}
 .search-hits .match-nav button{border:1px solid var(--line);border-radius:8px;padding:5px 12px}
 .search-hits .match-nav button:disabled{opacity:.35}
+
+/* Personal emo-punk palette: enabled only after authenticated @saygoida identity. */
+:root[data-personal-theme="emo-punk"]{color-scheme:dark;--sky:#09080c;--panel:#151117;--raise:#271b28;--line:#69435d;--text:#fff2fa;--muted:#c5aebb;--amber:#ff61bd;--amber-ink:#160811;--blue:#ff91cf;--arr:#61dfb6;--bad:#ff858e}
+[data-personal-theme="emo-punk"] body{background-color:var(--sky);background-image:radial-gradient(ellipse at 100% 0,rgba(255,46,157,.12),transparent 52%);background-attachment:fixed}
+[data-personal-theme="emo-punk"] .top{background:var(--sky);border-bottom:1px solid var(--line)}
+[data-personal-theme="emo-punk"] .h1{letter-spacing:-.045em;text-shadow:2px 2px 0 #7d194c}
+[data-personal-theme="emo-punk"] .h1::after{content:" ✦";color:var(--amber);text-shadow:none}
+[data-personal-theme="emo-punk"] .board,[data-personal-theme="emo-punk"] .sec{border:1px solid var(--line);border-radius:12px;box-shadow:3px 3px 0 #350e27}
+[data-personal-theme="emo-punk"] .b,[data-personal-theme="emo-punk"] input,[data-personal-theme="emo-punk"] textarea,[data-personal-theme="emo-punk"] select{border-radius:9px}
+[data-personal-theme="emo-punk"] .b.main{border:1px solid #ffa0d9;box-shadow:3px 3px 0 #6d1647}
+[data-personal-theme="emo-punk"] .chip.on{background:#371226;border-color:var(--amber);box-shadow:0 0 0 1px #ff61bd22}
+[data-personal-theme="emo-punk"] .nav{background:#09080cf5;border-top:2px solid var(--amber)}
+[data-personal-theme="emo-punk"] .nav button.on{background:#2a1021;border-radius:8px}
+[data-personal-theme="emo-punk"] .item-wrap.added-by-me{border-left-color:var(--amber);background:linear-gradient(90deg,#ff61bd14,transparent 60%)}
+[data-personal-theme="emo-punk"] .added-tag{color:var(--amber);background:#ff61bd1a;border-color:#ff61bd55}
+[data-personal-theme="emo-punk"] .filter-box{border-bottom:1px dashed var(--line)}
+[data-personal-theme="emo-punk"] :is(button,input,textarea,select):focus-visible{outline:2px solid #ff91cf;outline-offset:3px}
 </style>
 </head>
 <body>
@@ -2124,6 +2141,15 @@ new MutationObserver(records=>{
 }
 // ---------- end account-scoped iOS trial ----------
 
+// Theme changes appearance only; cached identities never enable personal themes.
+function applyPersonalTheme(me, verified) {
+  const enabled = verified === true && !!me && me.u === 'saygoida';
+  if (!enabled) { delete document.documentElement.dataset.personalTheme; return false; }
+  document.documentElement.dataset.personalTheme = 'emo-punk';
+  try { tg?.setHeaderColor('#09080c'); tg?.setBackgroundColor('#09080c'); tg?.setBottomBarColor?.('#09080c'); } catch (_) {}
+  return true;
+}
+
 // ---------- старт ----------
 (async function () {
   if (!tg || !tg.initData) { app.innerHTML = '<div class="empty">Откройте CRM из бота <b>@Hohlorezstat_bot</b> — кнопка «📱 CRM».</div>'; return; }
@@ -2142,6 +2168,7 @@ new MutationObserver(records=>{
   try { ME = await pMe; verifiedMe = true; lsSet('me', ME); } catch (e) { if (!cME) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   designTrialPending = false;
   const designTrialEnabled = verifiedMe && enableIosDesignTrial(ME);
+  if (applyPersonalTheme(ME, verifiedMe)) tg.onEvent?.('themeChanged', () => applyPersonalTheme(ME, verifiedMe));
   if (GOAL_FRESH) observeGoals(LIST);
   if (!cME || cachedDesignTester) render(); else if (designTrialEnabled) window.applyIosAppearance(); else nav();
 })();
