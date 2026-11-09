@@ -2154,11 +2154,11 @@ new MutationObserver(records=>{
 }
 // ---------- end account-scoped iOS trial ----------
 
-// Silent, decorative visitor: authenticated personal theme is the only entry point.
+// Silent decorative visitor: separately enabled for fresh authenticated Julia and Vova.
 let emoVisitorTimer=0,emoVisitorNode=null,emoVisitorBound=false,emoVisitorLastActivity=Date.now();
 function stopEmoVisitor(){clearTimeout(emoVisitorTimer);emoVisitorTimer=0;if(emoVisitorNode){emoVisitorNode.remove();emoVisitorNode=null;}}
 function canPlayEmoVisitor(){
- return document.documentElement.dataset.personalTheme==='emo-punk'&&!document.hidden&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches&&Date.now()-emoVisitorLastActivity>=8000&&!document.activeElement?.isContentEditable&&!document.querySelector('dialog[open], [aria-modal="true"]')&&(!document.hasFocus||document.hasFocus())&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'');
+ return document.documentElement.dataset.emoVisitor==='on'&&!document.hidden&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches&&Date.now()-emoVisitorLastActivity>=8000&&!document.activeElement?.isContentEditable&&!document.querySelector('dialog[open], [aria-modal="true"]')&&(!document.hasFocus||document.hasFocus())&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'');
 }
 function showEmoVisitor(){
  if(!canPlayEmoVisitor()||emoVisitorNode)return false;
@@ -2189,7 +2189,7 @@ function showEmoVisitor(){
 }
 function scheduleEmoVisitor(first){
  clearTimeout(emoVisitorTimer);emoVisitorTimer=0;
- if(document.documentElement.dataset.personalTheme!=='emo-punk'||document.hidden||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ if(document.documentElement.dataset.emoVisitor!=='on'||document.hidden||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  emoVisitorTimer=setTimeout(()=>{emoVisitorTimer=0;showEmoVisitor();scheduleEmoVisitor(false);},first?45000+Math.random()*30000:150000+Math.random()*90000);
 }
 function noteEmoVisitorActivity(){
@@ -2205,12 +2205,18 @@ function startEmoVisitor(){
  if(!emoVisitorTimer)scheduleEmoVisitor(true);
 }
 
+function configureEmoVisitor(me, verified) {
+ const enabled=verified===true&&!!me&&['saygoida','contractrussia2'].includes(me.u);
+ if(!enabled){delete document.documentElement.dataset.emoVisitor;stopEmoVisitor();return false;}
+ document.documentElement.dataset.emoVisitor='on';startEmoVisitor();return true;
+}
+
 // Theme changes appearance only; cached identities never enable personal themes.
 function applyPersonalTheme(me, verified) {
+  configureEmoVisitor(me, verified);
   const enabled = verified === true && !!me && me.u === 'saygoida';
-  if (!enabled) { stopEmoVisitor(); delete document.documentElement.dataset.personalTheme; return false; }
+  if (!enabled) { delete document.documentElement.dataset.personalTheme; return false; }
   document.documentElement.dataset.personalTheme = 'emo-punk';
-  startEmoVisitor();
   try { tg?.setHeaderColor('#09080c'); tg?.setBackgroundColor('#09080c'); tg?.setBottomBarColor?.('#09080c'); } catch (_) {}
   return true;
 }
