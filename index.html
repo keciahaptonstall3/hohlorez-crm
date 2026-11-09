@@ -375,6 +375,19 @@ input,textarea,select{transition:border-color 160ms ease}
 [data-personal-theme="emo-punk"] .added-tag{color:var(--amber);background:#ff61bd1a;border-color:#ff61bd55}
 [data-personal-theme="emo-punk"] .filter-box{border-bottom:1px dashed var(--line)}
 [data-personal-theme="emo-punk"] :is(button,input,textarea,select):focus-visible{outline:2px solid #ff91cf;outline-offset:3px}
+/* Decorative adult pixel-art visitor; never intercepts a CRM control. */
+.emo-visitor,.emo-visitor *{pointer-events:none!important;user-select:none}
+.emo-visitor{position:fixed;right:0;bottom:calc(88px + env(safe-area-inset-bottom));width:224px;height:170px;z-index:12;animation:emo-visit 3.2s linear both;filter:drop-shadow(0 4px 0 #0008);contain:layout style}
+.emo-visitor svg{width:100%;height:100%;overflow:visible;shape-rendering:crispEdges}
+.emo-visitor .pixel-body{animation:emo-step 3.2s steps(1,end) both;transform-origin:82px 75px}
+.emo-visitor .pixel-whip{transform-origin:67px 40px;animation:emo-crack 3.2s linear both}
+.emo-visitor .pixel-spark{opacity:0;animation:emo-snap 3.2s steps(1,end) both}
+@keyframes emo-visit{0%{transform:translateX(240px)}24%,72%{transform:translateX(0)}100%{transform:translateX(240px)}}
+@keyframes emo-step{0%,8%,16%,82%,90%{transform:translateY(0) rotate(-3deg)}4%,12%,20%,78%,86%,94%{transform:translateY(-3px) rotate(3deg)}24%,72%,100%{transform:translateY(0) rotate(0)}}
+@keyframes emo-crack{0%,34%{transform:rotate(25deg) scaleX(.62)}46%{transform:rotate(100deg) scaleX(.75)}53%{transform:rotate(-13deg) scaleX(1.2)}59%{transform:rotate(5deg) scaleX(.9)}68%,100%{transform:rotate(25deg) scaleX(.62)}}
+@keyframes emo-snap{0%,51%,58%,100%{opacity:0}52%,55%{opacity:1}}
+@media(max-width:359px){.emo-visitor{width:190px;height:145px}}
+@media(prefers-reduced-motion:reduce){.emo-visitor{display:none;animation:none}.emo-visitor *{animation:none!important}}
 </style>
 </head>
 <body>
@@ -2141,11 +2154,56 @@ new MutationObserver(records=>{
 }
 // ---------- end account-scoped iOS trial ----------
 
+// Silent, decorative visitor: authenticated personal theme is the only entry point.
+let emoVisitorTimer=0,emoVisitorNode=null,emoVisitorBound=false;
+function stopEmoVisitor(){clearTimeout(emoVisitorTimer);emoVisitorTimer=0;if(emoVisitorNode){emoVisitorNode.remove();emoVisitorNode=null;}}
+function canPlayEmoVisitor(){
+ return document.documentElement.dataset.personalTheme==='emo-punk'&&!document.hidden&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'');
+}
+function showEmoVisitor(){
+ if(!canPlayEmoVisitor()||emoVisitorNode)return false;
+ const el=document.createElement('div');el.className='emo-visitor';el.setAttribute('aria-hidden','true');
+ // Original adult silhouette: long-limbed, fully covered black zipped suit and boots.
+ el.innerHTML=`<svg viewBox="0 0 112 85" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+ <g class="pixel-body" stroke="none">
+ <path fill="#09080c" stroke="#ff61bd" stroke-width=".8" d="M77 11h9v3h3v19h-4v-8h-10v8h-4V16h3v-3h3z"/>
+ <path fill="#ff61bd" d="M77 12h2v16h-2zM74 15h2v8h-2z"/>
+ <path fill="#e2b2bf" d="M78 17h7v8h-2v3h-4v-3h-2v-6h1z"/>
+ <path fill="#20121f" d="M77 15h10v4h-5v-2h-5zM78 20h2v1h-2zM84 20h2v1h-2z"/>
+ <path fill="#8b204e" d="M81 24h3v1h-3z"/>
+ <path fill="#302432" stroke="#d25b9d" stroke-width=".7" d="M77 29h9l4 7-4 4-1 10 3 8h-15l3-8-2-11-5 4-3-3 8-10z"/>
+ <path fill="#ff61bd" d="M80 28h4v2h-4zM81 31h1v17h-1zM74 50h13v2H74z"/>
+ <path fill="#9b7798" d="M78 34h1v10h-1zM84 39h1v7h-1z"/>
+ <path fill="#302432" stroke="#e064a6" stroke-width=".65" d="M74 57h6l-1 17h-2v4h-9v-3h6zm8 0h5l3 18h4v3h-8v-4z"/>
+ <path fill="#ff61bd" d="M73 64h6v2h-6zM84 64h5v2h-5zM69 76h9v1h-9zM87 76h6v1h-6z"/>
+ <path fill="#e2b2bf" d="M65 39h4v3h-4z"/>
+ </g>
+ <g class="pixel-whip"><path fill="none" stroke="#ff91cf" stroke-width="1.4" d="M67 40Q57 5 40 26T14 42"/><path stroke="#c5aebb" stroke-width="2.5" d="M65 39l4 4"/></g>
+ <g class="pixel-spark" fill="#ff91cf"><path d="M8 34h2v5H8zm5 6h6v2h-6zM7 46h2v6H7zm-6-5h5v2H1z"/><path fill="#fff2fa" d="M7 40h4v5H7z"/></g>
+ </svg>`;
+ emoVisitorNode=el;document.body.append(el);
+ setTimeout(()=>{el.remove();if(emoVisitorNode===el)emoVisitorNode=null;},3400);return true;
+}
+function scheduleEmoVisitor(first){
+ clearTimeout(emoVisitorTimer);emoVisitorTimer=0;
+ if(document.documentElement.dataset.personalTheme!=='emo-punk'||document.hidden||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ emoVisitorTimer=setTimeout(()=>{emoVisitorTimer=0;showEmoVisitor();scheduleEmoVisitor(false);},first?45000+Math.random()*30000:150000+Math.random()*90000);
+}
+function startEmoVisitor(){
+ if(!emoVisitorBound){emoVisitorBound=true;
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopEmoVisitor();else scheduleEmoVisitor(true);});
+  window.addEventListener('pagehide',stopEmoVisitor);window.addEventListener('pageshow',()=>scheduleEmoVisitor(true));
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',e=>{if(e.matches)stopEmoVisitor();else scheduleEmoVisitor(true);});
+ }
+ if(!emoVisitorTimer)scheduleEmoVisitor(true);
+}
+
 // Theme changes appearance only; cached identities never enable personal themes.
 function applyPersonalTheme(me, verified) {
   const enabled = verified === true && !!me && me.u === 'saygoida';
-  if (!enabled) { delete document.documentElement.dataset.personalTheme; return false; }
+  if (!enabled) { stopEmoVisitor(); delete document.documentElement.dataset.personalTheme; return false; }
   document.documentElement.dataset.personalTheme = 'emo-punk';
+  startEmoVisitor();
   try { tg?.setHeaderColor('#09080c'); tg?.setBackgroundColor('#09080c'); tg?.setBottomBarColor?.('#09080c'); } catch (_) {}
   return true;
 }
