@@ -764,7 +764,7 @@ function bindItems() {
     catch(e) { b.disabled = false; toast(e.message); }
   });
 }
-function focusAllowed() { return !!ME && ME.u === 'saygoida'; }
+function focusAllowed() { return !!ME && ['saygoida','contractrussia2'].includes(ME.u); }
 function focusKeys() { const keys = lsGet('leo-focus'); return Array.isArray(keys) ? keys.filter(k => typeof k === 'string') : []; }
 function focusButton(k) { const yes = focusKeys().includes(k); return '<button type="button" class="focus-toggle" data-focus-key="' + esc(k) + '" aria-pressed="' + yes + '"><span aria-hidden="true">🍆</span>' + (yes ? 'Убрать из Фокуса' : 'В фокус') + '</button>'; }
 async function showFocus(reload) {
@@ -773,7 +773,7 @@ async function showFocus(reload) {
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(!!reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   if (stack.length || S.tab !== 'focus') return;
   const keys = focusKeys(), items = LIST.filter(c => keys.includes(c.k));
-  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">🍆 Фокус <small>' + items.length + '</small></h1><button class="ghost" id="focus-refresh">Обновить</button></div><div class="sub">Личная подборка Лео</div></div><div class="wrap"><div class="board">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Нажми 🍆 рядом с кандидатом, чтобы добавить его в Фокус</div>') + '</div></div>';
+  app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">🍆 Фокус <small>' + items.length + '</small></h1><button class="ghost" id="focus-refresh">Обновить</button></div><div class="sub">Личная подборка</div></div><div class="wrap"><div class="board">' + (items.length ? items.map(itemHtml).join('') : '<div class="empty">Нажми 🍆 рядом с кандидатом, чтобы добавить его в Фокус</div>') + '</div></div>';
   $('#focus-refresh').onclick = () => showFocus(true); bindItems(); bindQuickComments();
 }
 function bindFocus() { app.querySelectorAll('[data-focus-key]').forEach(b => b.onclick = async e => {
