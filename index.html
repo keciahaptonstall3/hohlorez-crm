@@ -359,7 +359,7 @@ input,textarea,select{transition:border-color 160ms ease}
 .search-hits .match-nav button{border:1px solid var(--line);border-radius:8px;padding:5px 12px}
 .search-hits .match-nav button:disabled{opacity:.35}
 
-/* Personal emo-punk palette: enabled only after authenticated @saygoida identity. */
+/* Personal emo-punk palette: authenticated Julia and Vova only. */
 :root[data-personal-theme="emo-punk"]{color-scheme:dark;--sky:#09080c;--panel:#151117;--raise:#271b28;--line:#69435d;--text:#fff2fa;--muted:#c5aebb;--amber:#ff61bd;--amber-ink:#160811;--blue:#ff91cf;--arr:#61dfb6;--bad:#ff858e}
 [data-personal-theme="emo-punk"] body{background-color:var(--sky);background-image:radial-gradient(ellipse at 100% 0,rgba(255,46,157,.12),transparent 52%);background-attachment:fixed}
 [data-personal-theme="emo-punk"] .top{background:var(--sky);border-bottom:1px solid var(--line)}
@@ -1795,7 +1795,7 @@ setInterval(refreshArrivals,45000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){drainArrivals();refreshArrivals();}});
 
 // ---------- account-scoped iOS trial: 2026-11-09 ----------
-const isIosDesignTester=me=>!!me&&['wrkinrussia','contractrussia2'].includes(me.u);
+const isIosDesignTester=me=>!!me&&me.u==='wrkinrussia';
 let iosDesignTrialInstalled=false;
 function enableIosDesignTrial(verifiedMe){
  // Called only after the existing authenticated me request succeeds.
@@ -2214,7 +2214,7 @@ function configureEmoVisitor(me, verified) {
 // Theme changes appearance only; cached identities never enable personal themes.
 function applyPersonalTheme(me, verified) {
   configureEmoVisitor(me, verified);
-  const enabled = verified === true && !!me && me.u === 'saygoida';
+  const enabled = verified === true && !!me && ['saygoida','contractrussia2'].includes(me.u);
   if (!enabled) { delete document.documentElement.dataset.personalTheme; return false; }
   document.documentElement.dataset.personalTheme = 'emo-punk';
   try { tg?.setHeaderColor('#09080c'); tg?.setBackgroundColor('#09080c'); tg?.setBottomBarColor?.('#09080c'); } catch (_) {}
