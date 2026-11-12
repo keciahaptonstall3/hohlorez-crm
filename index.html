@@ -808,8 +808,12 @@ function docName(code) { const d = ME.docs.find(x => x[0] === code); return d ? 
 function farBtn() {
   const el = $('#far'); if (!el) return;
   const q = S.q.trim(); if (q.replace(/\D/g, '').length < 4 && q.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '').length < 2) { el.innerHTML = ''; return; }
-  el.innerHTML = '<button class="more" id="farb">Искать «' + esc(q) + '» во всех заявках таблицы</button>';
-  $('#farb').onclick = async () => { el.innerHTML = '<div class="sec"><span class="spin"></span></div>';
+  const outside = LIST.filter(c => candidateQueryMatches(c, q) && !matches(c));
+  el.innerHTML = (outside.length ? '<div class="sec"><h2>Совпадения вне текущих фильтров <small>' + outside.length + '</small></h2>'
+    + outside.map(leadRow).join('') + '</div>' : '')
+    + '<button class="more" id="farb">Искать «' + esc(q) + '» во всех заявках таблицы</button><div id="far-results"></div>';
+  bindLeads(el);
+  $('#farb').onclick = async () => { const el = $('#far-results'); el.innerHTML = '<div class="sec"><span class="spin"></span></div>';
     try { const L = await api('find', { q: q }); el.innerHTML = '<div class="sec"><h2>Во всей таблице <small>' + L.length + (L.length >= 30 ? '+' : '') + '</small></h2>'
       + (L.length ? L.map(leadRow).join('') : '<div class="sub">Никого не нашёл</div>') + '</div>'; bindLeads(el); } catch (e) { el.innerHTML = '<div class="sec sub">' + esc(e.message) + '</div>'; } };
 }
