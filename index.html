@@ -486,6 +486,7 @@ function applyCandidateDefaults() {
   S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = defaultKey;
 }
 function render() {
+  if (ME && ME.language === 'id') return renderVino();
   CARDSEQ++; app.dataset.cardKey = "";
   clearInterval(boardTimer); clearInterval(callTimer);
   applyCandidateDefaults();
@@ -1126,7 +1127,9 @@ async function showCard(k, keep, savedScope) {
   let stH = ''; if (A.length) stH = '<div class="sec"><h2>Этап</h2><div class="acts">' + A.map(x => '<button class="b ' + x[2] + '" data-s="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + staffHtml(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
-  app.innerHTML = h + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
+  const shareVino = c.vinoShare ? '<div class="sec" data-save-scope><button class="b" id="vino-share" aria-pressed="' +
+    c.vinoShare.shared + '">' + (c.vinoShare.shared ? 'Скрыть кандидата от Вино' : 'Показывать кандидата Вино') + '</button></div>' : '';
+  app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   app.dataset.cardKey = k;
   if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
   bindCard(c); observeBudgetCard(c);
@@ -1207,6 +1210,8 @@ function bindCard(c) {
   const run = async (btn, op, a, msg) => { if (!active()) return; const scope = btn ? (btn.closest('[data-save-scope]') || btn.closest('.sec')) : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg, scope); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { if (!active()) return; hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  if (c.vinoShare) on('vino-share', button => run(button, 'vino-share', {shared: !c.vinoShare.shared},
+    c.vinoShare.shared ? 'Доступ Вино закрыт' : 'Кандидат доступен Вино'));
   if (ME.u === 'contractrussia2' && c.callRequest) {
     const send = $('#call-request-send'), field = $('#call-request-text'), status = $('#call-request-status'), recipient = $('#call-request-to');
     let busy = false, until = c.callRequest.until || 0, requestId = '';
@@ -1266,15 +1271,7 @@ function bindCard(c) {
     expenseBusy = true; b.disabled = true; const label = b.innerHTML; b.innerHTML = '<span class="spin"></span>';
     try {
       const x = f ? await shrink(f) : null, a = {sum:sum,cat:cat,cm:cm,img:x && x.b,mime:x && x.mime};
-      // Persist only an opaque operation ID and a digest, never the receipt or candidate data.
-      const bytes = new TextEncoder().encode(JSON.stringify(a));
-      const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), v => v.toString(16).padStart(2,'0')).join('');
-      const storageKey = 'crm-expense:' + ME.u + ':' + k + ':' + digest;
-      let id = sessionStorage.getItem(storageKey);
-      if (!id) { id = 'ex_' + crypto.randomUUID().replace(/-/g,''); sessionStorage.setItem(storageKey,id); }
-      // The captured payload still belongs to k even if navigation happened during image conversion.
-      const d = await api('spend', Object.assign({k:k,id:id},a));
-      sessionStorage.removeItem(storageKey);
+      const d = await saveCandidateExpense('spend', k, a);
       again(d.big ? 'Отправлено руководителю на одобрение' : 'Трата записана', b.closest('.sec'));
     } catch (e) { if (active()) { hap('error'); toast(e.message); } }
     finally { expenseBusy = false; b.disabled = false; b.innerHTML = label; }
@@ -2225,12 +2222,157 @@ function applyPersonalTheme(me, verified) {
   return true;
 }
 
+async function saveCandidateExpense(op, key, data) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), v => v.toString(16).padStart(2, '0')).join('');
+  const storageKey = 'crm-expense:' + ME.u + ':' + key + ':' + digest;
+  let id = sessionStorage.getItem(storageKey);
+  if (!id) {
+    id = 'ex_' + crypto.randomUUID().replace(/-/g, '');
+    sessionStorage.setItem(storageKey, id);
+  }
+  const result = await api(op, Object.assign({k: key, id}, data));
+  sessionStorage.removeItem(storageKey);
+  return result;
+}
+const VINO_EXPENSE_CATEGORIES = {
+  'Паспорт':'Paspor', 'Виза':'Visa', 'Билеты':'Tiket', 'Турпакет':'Paket wisata',
+  'Бронь':'Reservasi', 'Транспорт':'Transportasi', 'Жильё':'Penginapan', 'Еда':'Makanan',
+  'Связь':'Komunikasi', 'Помощь семье':'Bantuan keluarga', 'Выплата рекруту':'Pembayaran kepada kandidat', 'Другое':'Lainnya'
+};
+function vinoExpenseForm(expense) {
+  const status = {pending:'Menunggu persetujuan', rejected:'Ditolak', recorded:'Tercatat'};
+  const rows = expense.rows.map(row => '<li><strong>' + esc(money(row.amount)) + '</strong> · ' +
+    esc(VINO_EXPENSE_CATEGORIES[row.category] || 'Lainnya') + ' · ' + esc(status[row.status]) +
+    '<div class="sub">' + esc(row.description) + '</div></li>').join('');
+  return '<form id="vino-expense" class="sec form"><h2>Pengeluaran</h2>' +
+    '<label>Jumlah (USD)<input name="sum" type="number" min="0.01" max="100000" step="0.01" required></label>' +
+    '<label>Kategori<select name="cat">' + expense.categories.map(cat =>
+      '<option value="' + esc(cat) + '">' + esc(VINO_EXPENSE_CATEGORIES[cat] || 'Lainnya') + '</option>').join('') + '</select></label>' +
+    '<label>Keterangan<input name="cm" required maxlength="300"></label>' +
+    '<label>Foto struk<input name="receipt" type="file" accept="image/*"></label>' +
+    '<p class="sub">Mulai ' + esc(money(expense.approvalFrom)) +
+    ', pengeluaran perlu persetujuan dan foto struk. Untuk bantuan keluarga, foto struk opsional.</p>' +
+    '<button class="b main" type="submit">Simpan pengeluaran</button><p class="sub" role="status"></p>' +
+    (rows ? '<ul class="list">' + rows + '</ul>' : '') + '</form>';
+}
+async function renderVino() {
+  document.documentElement.lang = 'id';
+  $('#nav').classList.add('hid');
+  const route = stack[stack.length - 1];
+  if (route) tg.BackButton.show(); else tg.BackButton.hide();
+  const current = () => stack[stack.length - 1] === route;
+  const header = title => '<div class="top"><div class="toprow"><h1 class="h1">' + title + '</h1>' +
+    (route ? '<button class="ghost" id="vino-back">Kembali</button>' : '<button class="ghost" id="vino-add">＋ Tambah</button>') + '</div></div>';
+  const bindBack = () => { if ($('#vino-back')) $('#vino-back').onclick = back; };
+  const error = () => 'Tidak dapat memuat data. Coba lagi.';
+  const save = async (form, op, data, done) => {
+    const button = form.querySelector('button[type=submit]'), status = form.querySelector('[role=status]');
+    button.disabled = true;
+    status.textContent = '';
+    try { const result = await api(op, data); if (current()) done(result); }
+    catch (e) { if (current()) status.textContent = /^(Masukkan|Pilih|Nomor|Tulis|Terjemahan|Kandidat|Akses)/.test(e.message) ? e.message : 'Tidak dapat menyimpan. Coba lagi.'; }
+    finally { button.disabled = false; }
+  };
+  if (route && route.kind === 'vino-add') {
+    app.innerHTML = header('Tambah kandidat') + '<div class="wrap"><form class="sec form" id="vino-form">' +
+      '<label>Nama lengkap<input name="name" required maxlength="180"></label><label>Nomor WhatsApp<input name="phone" type="tel" required maxlength="30" placeholder="+62"></label>' +
+      '<label>Paspor<select name="pass"><option value="unknown">Belum diketahui</option><option value="yes">Ada</option><option value="no">Tidak ada</option></select></label>' +
+      '<button class="b main" type="submit">Simpan kandidat</button><p class="sub" role="status"></p></form></div>';
+    bindBack();
+    $('#vino-form').onsubmit = event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      save(form, 'vino-add', Object.fromEntries(new FormData(form)), result => {
+        stack[stack.length - 1] = {kind:'vino-card', key:result.key};
+        renderVino();
+      });
+    };
+    return;
+  }
+  app.innerHTML = header(route ? 'Kandidat' : 'Kandidat saya') + '<div class="wrap" id="vino-content"><p class="sub" role="status">Memuat…</p></div>';
+  bindBack();
+  if (!route) $('#vino-add').onclick = () => { stack.push({kind:'vino-add'}); renderVino(); };
+  const openCard = key => { stack.push({kind:'vino-card',key}); renderVino(); };
+  try {
+    if (!route) {
+      const list = await api('vino-list');
+      if (!current()) return;
+      $('#vino-content').innerHTML = '<div class="sub" style="margin-bottom:10px">🪿 Tim Indonesia</div>' +
+        '<input id="vino-search" type="search" placeholder="Cari nama atau nomor" aria-label="Cari kandidat"><div id="vino-items" class="board" style="margin-top:10px"></div>';
+      const draw = () => {
+        const query = $('#vino-search').value.trim().toLowerCase();
+        const digits = query.replace(/\D/g, '');
+        const rows = list.filter(c => c.name.toLowerCase().includes(query) || (digits && c.phone.replace(/\D/g, '').includes(digits)));
+        $('#vino-items').innerHTML = rows.map(c => '<button class="item" data-vino-key="' + esc(c.key) +
+          '"><div class="name">' + esc(c.name) + '</div><span class="sub">' + esc(c.stage) +
+          '</span><div class="meta">' + esc(c.phone) + (c.shared ? ' · Dibagikan kepada Anda' : '') +
+          '</div></button>').join('') || '<div class="empty">Tidak ada kandidat</div>';
+        app.querySelectorAll('[data-vino-key]').forEach(b => b.onclick = () => openCard(b.dataset.vinoKey));
+      };
+      $('#vino-search').oninput = draw;
+      draw();
+      return;
+    }
+    const c = await api('vino-card', {k:route.key});
+    if (!current()) return;
+    const phone = c.phone.replace(/\D/g, '');
+    const contact = phone ? '<div class="acts"><a class="b" href="tel:+' + phone + '">Telepon</a>' +
+      '<a class="b main" href="https://wa.me/' + phone + '" target="_blank" rel="noopener noreferrer">WhatsApp</a></div>' : '';
+    $('#vino-content').innerHTML = '<div class="sec"><h2>' + esc(c.name) + '</h2><p class="sub">' +
+      esc(c.stage) + (c.shared ? ' · Dibagikan kepada Anda' : '') + '</p><p>' + esc(c.phone) + '</p>' + contact + '</div>' +
+      '<form class="sec form" id="vino-form"><h2>Komentar</h2><label>Hasil panggilan atau langkah berikutnya<textarea name="text" required minlength="3" maxlength="5000"></textarea></label>' +
+      '<button class="b main" type="submit">Simpan komentar</button><p class="sub" role="status"></p></form>' +
+      '<div class="sec"><h2>Riwayat komentar</h2>' +
+      (c.comments.map(x => '<p class="sub">' + esc(fmt(x.at)) + '</p><p style="white-space:pre-wrap">' + esc(x.text) + '</p>').join('') || '<p class="sub">Belum ada komentar.</p>') + '</div>';
+    if (c.expense) {
+      $('#vino-content').insertAdjacentHTML('beforeend', vinoExpenseForm(c.expense));
+      $('#vino-expense').onsubmit = async event => {
+        event.preventDefault();
+        const form = event.currentTarget, button = form.querySelector('button[type=submit]');
+        const status = form.querySelector('[role=status]'), fields = new FormData(form);
+        button.disabled = true;
+        status.textContent = '';
+        try {
+          const receipt = fields.get('receipt');
+          const photo = receipt && receipt.size ? await shrink(receipt) : null;
+          const result = await saveCandidateExpense('vino-spend', c.key, {
+            sum: fields.get('sum'), cat: fields.get('cat'), cm: fields.get('cm'),
+            img: photo && photo.b, mime: photo && photo.mime
+          });
+          if (current()) { toast(result.big ? 'Menunggu persetujuan' : 'Pengeluaran tersimpan'); renderVino(); }
+        } catch (e) {
+          if (current()) status.textContent = /^(Masukkan|Pilih|Tulis|Muat ulang|Lampirkan|Kandidat)/.test(e.message) ?
+            e.message : 'Pengeluaran belum dapat dikonfirmasi. Coba lagi dengan data yang sama.';
+        } finally { button.disabled = false; }
+      };
+    }
+    $('#vino-form').onsubmit = event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      save(form, 'vino-comment', {k:c.key,text:form.elements.text.value}, () => { toast('Komentar tersimpan'); renderVino(); });
+    };
+  } catch (_) {
+    if (!current()) return;
+    $('#vino-content').innerHTML = '<p class="sub" role="status">' + error() + '</p><button class="b" id="vino-retry">Coba lagi</button>';
+    $('#vino-retry').onclick = renderVino;
+  }
+}
+
 // ---------- старт ----------
 (async function () {
   if (!tg || !tg.initData) { app.innerHTML = '<div class="empty">Откройте CRM из бота <b>@Hohlorezstat_bot</b> — кнопка «📱 CRM».</div>'; return; }
   tg.ready(); tg.expand();
   try { tg.setHeaderColor('#0D1626'); tg.setBackgroundColor('#0D1626'); if (tg.setBottomBarColor) tg.setBottomBarColor('#0D1626'); } catch (e) {}
   tg.BackButton.onClick(back);
+  const tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user;
+  if (String(tgUser && tgUser.username || '').toLowerCase() === 'lordleower') {
+    document.documentElement.lang = 'id';
+    app.innerHTML = '<div class="empty">Memuat CRM…</div>';
+    try { ME = await api('me'); }
+    catch (_) { app.innerHTML = '<div class="empty">Buka kembali CRM dari bot.</div>'; return; }
+    if (ME.language === 'id') { renderVino(); return; }
+  }
   const pMe = api('me'), cME = lsGet('me'), cL = lsGet('list');
   const cachedDesignTester = isIosDesignTester(cME);
   let designTrialPending = !!cachedDesignTester, verifiedMe = false;
