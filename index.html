@@ -1128,7 +1128,7 @@ async function showCard(k, keep, savedScope) {
   let askH = ''; if (ME.boss && c.t) askH = '<div class="sec"><h2>Вопрос команде</h2><div class="form" style="margin:0"><textarea id="askt" placeholder="Вопрос получит команда кандидата. Ответ придёт вам в бот."></textarea><button class="b" id="asks">Отправить вопрос</button></div></div>';
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + staffHtml(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
   const shareVino = c.vinoShare ? '<div class="sec" data-save-scope><button class="b" id="vino-share" aria-pressed="' +
-    c.vinoShare.shared + '">' + (c.vinoShare.shared ? 'Скрыть кандидата от Вино' : 'Показывать кандидата Вино') + '</button></div>' : '';
+    c.vinoShare.shared + '">' + (c.vinoShare.shared ? 'Скрыть кандидата от James' : 'Показывать кандидата James') + '</button></div>' : '';
   app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   app.dataset.cardKey = k;
   if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
@@ -1211,7 +1211,7 @@ function bindCard(c) {
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg, scope); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { if (!active()) return; hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
   if (c.vinoShare) on('vino-share', button => run(button, 'vino-share', {shared: !c.vinoShare.shared},
-    c.vinoShare.shared ? 'Доступ Вино закрыт' : 'Кандидат доступен Вино'));
+    c.vinoShare.shared ? 'Доступ James закрыт' : 'Кандидат доступен James'));
   if (ME.u === 'contractrussia2' && c.callRequest) {
     const send = $('#call-request-send'), field = $('#call-request-text'), status = $('#call-request-status'), recipient = $('#call-request-to');
     let busy = false, until = c.callRequest.until || 0, requestId = '';
