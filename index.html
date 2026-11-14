@@ -435,7 +435,7 @@ async function api(op, a, again) {
         if (!r.ok) throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.');
         return r.json();
       })(),
-      new Promise((resolve, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.')); }, timeout); })
+      new Promise((resolve, reject) => { timer = setTimeout(() => { reject(new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.')); controller.abort(); }, timeout); })
     ]);
   } finally { clearTimeout(timer); }
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Не удалось прочитать ответ сервера. Попробуйте позже.');
@@ -1633,7 +1633,8 @@ function bindQuickComments() {
       e.preventDefault(); if (CM_BUSY) return;
       const text = input.value.trim(); if (text.length < 3) { toast('Напишите хотя бы пару слов'); input.focus(); return; }
       commentDraft(key, input.value); CM_BUSY = key; form.querySelectorAll('button,textarea').forEach(el => el.disabled = true);
-      const submit = form.querySelector('[type="submit"]'), label = submit.innerHTML; submit.innerHTML = '<span class="spin"></span> Сохраняю';
+      const submit = form.querySelector('[type="submit"]'); submit.innerHTML = '<span class="spin"></span> Сохраняю';
+      let failureMessage = '';
       form.querySelector('[data-comment-status]').textContent = '';
       try {
         const c = LIST.find(c => c.k === key); if (!c) throw new Error('Обновите список кандидатов перед сохранением.');
@@ -1641,8 +1642,17 @@ function bindQuickComments() {
         c.cm = [Date.now(), ME.name || ME.u, text]; c.teamCm = true;
         clearCommentDraft(key, text); CM_OPEN = ''; CM_BUSY = ''; LDIRTY = false; lsSet('list', LIST);
         hap(); toast('✅ Комментарий сохранён'); cmRedraw();
-      } catch (err) { if (form.isConnected) form.querySelector('[data-comment-status]').textContent = err.message; hap('error'); }
-      finally { CM_BUSY = ''; if (form.isConnected) { form.querySelectorAll('button,textarea').forEach(el => el.disabled = false); submit.innerHTML = label; } }
+      } catch (err) { failureMessage = err.message; hap('error'); }
+      finally {
+        CM_BUSY = '';
+        // The list may have refreshed while awaiting the server: release the currently visible form too.
+        app.querySelectorAll('[data-cm-form]').forEach(current => {
+          if (current.dataset.cmForm !== key) return;
+          current.querySelectorAll('button,textarea').forEach(el => el.disabled = false);
+          current.querySelector('[type="submit"]').textContent = current.dataset.place === 'queue' ? 'Сохранить и следующий →' : 'Сохранить';
+          current.querySelector('[data-comment-status]').textContent = failureMessage;
+        });
+      }
     };
   });
 }
