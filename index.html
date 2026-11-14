@@ -426,13 +426,65 @@ function staffHtml(value) { return esc(staffName(value)); }
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
 async function api(op, a, again) {
-  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ init: tg ? tg.initData : '', op: op, a: a || {} }) });
-  const j = await r.json();
-  if (j.err && /занята/.test(j.err) && !again) { await new Promise(res => setTimeout(res, 2000)); return api(op, a, 1); }   // таблица занята — один тихий повтор
-  if (j.err) throw new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа к CRM' : j.err);
+  const controller = new AbortController(), timeout = op === 'upload' || op === 'vino-spend' ? 90000 : 35000;
+  let timer, j;
+  try {
+    j = await Promise.race([
+      (async () => {
+        const r = await fetch(API, { method: 'POST', signal: controller.signal, body: JSON.stringify({ init: tg ? tg.initData : '', op: op, a: a || {} }) });
+        if (!r.ok) throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.');
+        return r.json();
+      })(),
+      new Promise((resolve, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.')); }, timeout); })
+    ]);
+  } finally { clearTimeout(timer); }
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Не удалось прочитать ответ сервера. Попробуйте позже.');
+  if (j.err && /занята/.test(j.err) && !again && op !== 'agentwrite') { await new Promise(res => setTimeout(res, 2000)); return api(op, a, 1); }
+  if (j.err) {
+    const error = new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа к CRM' : j.err);
+    error.serverError = j.err; throw error;
+  }
   if (j.staffAwards) { STAFF_AWARDS = j.staffAwards; lsSet('staffAwards',j.staffAwards); }
   refreshGoalsAfterWrite(op);
   return j.d;
+}
+// Keep the same durable receipt ID across an interrupted save, navigation and reload.
+function commentDraft(key, text) { CM_DRAFTS[key] = text; lsSet('comment-drafts', CM_DRAFTS); }
+function clearCommentDraft(key, text) {
+  if (String(CM_DRAFTS[key] || '').trim() === text.trim()) { delete CM_DRAFTS[key]; lsSet('comment-drafts', CM_DRAFTS); }
+}
+async function saveCandidateComment(candidate, text) {
+  text = String(text || '').trim();
+  if (text.length < 3 || text.length > 10000) throw new Error('Комментарий должен содержать от 3 до 10000 символов.');
+  const key = candidate.k, storageKey = 'comment-write:' + key;
+  let request = lsGet(storageKey);
+  if (request) {
+    const receipt = await api('agentstatus', {id: request.id});
+    if (receipt && receipt.status === 'done') {
+      lsSet(storageKey, null);
+      if (request.arguments.text === text) { refreshGoalsAfterWrite('comment'); return receipt; }
+      request = null;
+    } else if (!receipt || receipt.status !== 'not_found') {
+      throw new Error('Результат предыдущего сохранения пока не подтверждён. Черновик сохранён; проверьте историю карточки. Повторная запись заблокирована, чтобы избежать дубля.');
+    } else if (request.arguments.text !== text) {
+      throw new Error('Предыдущее сохранение ещё проверяется. Ваш новый текст сохранён в черновике. Сначала проверьте предыдущий комментарий в карточке.');
+    }
+  }
+  if (!request) {
+    request = {id:'ag_ui_' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2)), operation:'comment', key:key,
+      arguments:{text:text}, expected:{name:candidate.n,stage:candidate.st,team:candidate.t || ''}, reason:'Пользователь сохраняет комментарий в интерфейсе CRM'};
+    lsSet(storageKey, request);
+    if (lsGet(storageKey)?.id !== request.id) throw new Error('Не удалось сохранить черновик запроса на этом устройстве. Освободите место и повторите.');
+  }
+  try {
+    const receipt = await api('agentwrite', request);
+    if (!receipt || receipt.id !== request.id || receipt.status !== 'done') throw new Error('Сохранение пока не подтверждено. Черновик сохранён; проверьте историю карточки.');
+    lsSet(storageKey, null); refreshGoalsAfterWrite('comment'); return receipt;
+  } catch (error) {
+    // These explicit errors precede the ledger/write; a changed draft may safely start a new request.
+    if (/^(auth|auth_old|noaccess)$|^Таблица занята|^Карточка изменилась|^Нет доступа/.test(error.serverError || '')) lsSet(storageKey, null);
+    throw error;
+  }
 }
 function confirmP(msg) { return new Promise(res => tg && tg.showConfirm ? tg.showConfirm(msg, res) : res(window.confirm(msg))); }
 function popup(title, msg, btns) {                           // Telegram показывает не больше 3 кнопок — иначе свой список снизу
@@ -510,9 +562,11 @@ function render() {
 let CSEARCH = {q:'', keys:new Set(), hits:new Map(), loading:false, error:'', done:false}, CSEARCH_TIMER = null, CSEARCH_SEQ = 0;
 function resetCandidateSearch() { clearTimeout(CSEARCH_TIMER); CSEARCH_SEQ++; CSEARCH = {q:'', keys:new Set(), hits:new Map(), loading:false, error:'', done:false}; }
 function candidateQueryMatches(c, query) {
-  const q = String(query || '').trim().toLowerCase(); if (!q) return true;
+  const normalize = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ё/g, 'е').trim();
+  const q = normalize(query); if (!q) return true;
+  const words = q.split(/\s+/), original = String(query || '').trim().toLowerCase();
   const digits = /^[+\d\s().-]+$/.test(q) ? q.replace(/\D/g, '') : '';
-  return String(c.n || '').toLowerCase().includes(q) || (digits.length >= 3 && String(c.ph || '').replace(/\D/g, '').includes(digits)) || (CSEARCH.q === q && CSEARCH.keys.has(c.k));
+  return [c.n, c.tg && '@' + c.tg].some(v => v && words.every(w => normalize(v).includes(w))) || (digits.length >= 3 && [c.ph,c.ph2].some(v => String(v || '').replace(/\D/g, '').includes(digits))) || (CSEARCH.q === original && CSEARCH.keys.has(c.k));
 }
 function requestCandidateSearch(query, draw) {
   const q = String(query || '').trim().toLowerCase();
@@ -591,6 +645,7 @@ function countryOptionsHtml(countries) {
   return '<option value="">Все страны · ' + count('') + '</option>' + countries.map(country => '<option value="' + esc(country) + '"' + (country === selected ? ' selected' : '') + '>' + esc((ME.flagsEmo[country] || '🌍') + ' ' + country) + ' · ' + count(country) + '</option>').join('');
 }
 function matches(c) {
+  if (String(S.q || '').trim() && !S.searchFiltered) return candidateQueryMatches(c, S.q);
   if (focusAllowed() && focusKeys().includes(c.k)) return false;
   const f = S.f, act = c.st === 'В работе' || c.st === 'В пути';
   if (S.show === 'act' && !act) return false;
@@ -614,7 +669,7 @@ async function showList(reload) {
   if (LIST.length && LDIRTY && !reload) { LDIRTY = false;
     loadList(true).then(() => { if (!stack.length && S.tab === 'list') { const y = window.scrollY; showList(); window.scrollTo(0, y); } }).catch(() => {}); }
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
-  const countries = candidateCountries();
+  const searching = !!String(S.q || '').trim(), countries = candidateCountries();
   if (S.country && !countries.includes(S.country)) S.country = '';
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.moderator || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(candidateDefaultTeams().length > 1 ? [['mine', 'Мои команды']] : [], teams, [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
@@ -629,6 +684,7 @@ async function showList(reload) {
   const summary = [S.country || '', S.f !== 'a' ? (F.find(x => x[0] === S.f) || [0, ''])[1] : '', S.pf ? (F.find(x => x[0] === S.pf) || [0, ''])[1] : '', stages.find(x => x[0] === S.show)[1], S.cm ? (commentFilters.find(x => x[0] === S.cm) || [0, ''])[1] : ''].filter(Boolean).join(' · ');
   app.innerHTML = '<div class="top list-top"><div class="toprow"><h1 class="h1">Кандидаты</h1><div class="hdr"><button class="ghost" id="rl">Обновить</button><button class="ghost" id="add" style="color:var(--amber);font-weight:600">＋ Добавить</button></div></div>'
     + '<input id="q" type="search" placeholder="Поиск" aria-label="Поиск кандидатов по имени, телефону, комментариям, вопросам и тратам" value="' + esc(S.q) + '">'
+    + '<label id="search-scope" class="sub' + (searching ? '' : ' hid') + '" style="display:block;margin-top:8px"><input type="checkbox" id="search-filtered" style="width:auto;margin-right:6px"' + (S.searchFiltered ? ' checked' : '') + '>Только в выбранных фильтрах</label>'
     + '<div id="search-status" class="sub" role="status"></div>'
     + '<details class="filter-box" id="filters"' + (S.filtersOpen ? ' open' : '') + '><summary><span class="filter-label">Фильтры' + (activeFilters ? '<b class="filter-count">' + activeFilters + '</b>' : '') + '</span><span class="filter-summary">' + esc(summary) + '</span><span class="filter-chevron" aria-hidden="true">⌄</span></summary><div class="filter-panel">'
     + '<div class="chips">' + F.map(x => '<button class="chip' + (isOn(x[0]) ? ' on' : '') + '" aria-pressed="' + isOn(x[0]) + '" data-f="' + x[0] + '">' + x[1] + '<b>' + cnt(x[0]) + '</b></button>').join('') + '</div>'
@@ -646,16 +702,20 @@ async function showList(reload) {
   const q = $('#q');
   const redrawSearch = () => {
     if (!q.isConnected || stack.length || S.tab !== 'list') return;
+    const searching = !!String(S.q || '').trim(), globalSearch = searching && !S.searchFiltered;
+    $('#search-scope').classList.toggle('hid', !searching);
+    $('#filters').classList.toggle('hid', globalSearch);
     $('#items').innerHTML = LIST.filter(matches).map(itemHtml).join('') || '<div class="empty">Среди выбранных кандидатов нет</div>';
     app.querySelectorAll('[data-cm]').forEach(b => b.querySelector('b').textContent = cmCount(b.dataset.cm));
     app.querySelectorAll('[data-f]').forEach(b => b.querySelector('b').textContent = cnt(b.dataset.f));
     app.querySelectorAll('[data-s]').forEach(b => b.querySelector('b').textContent = stageCount(b.dataset.s));
     $('#filter-results').textContent = 'Кандидатов: ' + LIST.filter(matches).length;
     $('#country-filter').innerHTML = countryOptionsHtml(countries);
-    const status = $('#search-status'); if (status) status.textContent = CSEARCH.loading ? 'Ищу в комментариях, вопросах и тратах…' : CSEARCH.error ? 'Поиск по истории не удался. ' + CSEARCH.error : '';
+    const status = $('#search-status'); if (status) status.textContent = (globalSearch ? 'Все доступные кандидаты, включая архив и Фокус. ' : '') + (CSEARCH.loading ? 'Ищу в комментариях, вопросах и тратах…' : CSEARCH.error ? 'Поиск по истории не удался. ' + CSEARCH.error : '');
     bindItems(); bindQuickComments(); farBtn();
   };
   q.oninput = () => { S.q = q.value; requestCandidateSearch(S.q, redrawSearch); redrawSearch(); };
+  $('#search-filtered').onchange = e => { S.searchFiltered = e.target.checked; redrawSearch(); };
   requestCandidateSearch(S.q, redrawSearch); redrawSearch();
   farBtn(); if (S.show === 'act') waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const f = b.dataset.f; if (['pass','nopass'].includes(f)) S.pf = S.pf === f ? '' : f; else { S.f = S.f === f ? 'a' : f; if (f === 'a') S.pf = ''; } showList(); });
@@ -1276,7 +1336,25 @@ function bindCard(c) {
     } catch (e) { if (active()) { hap('error'); toast(e.message); } }
     finally { expenseBusy = false; b.disabled = false; b.innerHTML = label; }
   });
-  on('cms', b => { const t = $('#cmt').value.trim(); if (t.length < 3) return toast('Напишите хотя бы пару слов'); run(b, 'comment', { text: t }, 'Сохранено · подсказки, если есть, придут в бот'); });
+  const commentField = $('#cmt');
+  if (commentField) {
+    if (CM_DRAFTS[k] && !commentField.value) commentField.value = CM_DRAFTS[k];
+    commentField.oninput = () => commentDraft(k, commentField.value);
+  }
+  on('cms', async b => {
+    if (b.disabled || !active()) return;
+    const field = commentField, text = field.value.trim(), label = b.innerHTML;
+    if (text.length < 3) return toast('Напишите хотя бы пару слов');
+    commentDraft(k, field.value); b.disabled = true; field.disabled = true; b.innerHTML = '<span class="spin"></span> Сохраняю';
+    let status = b.parentElement.querySelector('[data-comment-status]');
+    if (!status) { status = document.createElement('div'); status.dataset.commentStatus = ''; status.className = 'sub'; status.setAttribute('role','status'); b.parentElement.appendChild(status); }
+    status.textContent = '';
+    try {
+      await saveCandidateComment(c, text); clearCommentDraft(k, text);
+      again('Комментарий сохранён', b.closest('.sec'));
+    } catch (error) { if (active()) { status.textContent = error.message; hap('error'); } }
+    finally { b.disabled = false; field.disabled = false; b.innerHTML = label; }
+  });
   const commentSearch = $('#cm-search'); let allComments = false;
   const filterComments = () => {
     const query = commentSearch.value.trim(); let found = 0;
@@ -1466,7 +1544,7 @@ function bindFinance(kind) {
 function bindAnalyticsCandidates(){app.querySelectorAll('[data-dcandidate]').forEach(b=>b.onclick=()=>{stack.push({kind:'card',k:b.dataset.dcandidate});render();});}
 
 // Комментарии: 24 часа, любой автор, вопросы руководителя обрабатываются отдельно.
-let CM_PICK = '', CM_OPEN = '', CM_PLACE = '', CM_BUSY = '', CM_DRAFTS = {}, CM_PULSE = false;
+let CM_PICK = '', CM_OPEN = '', CM_PLACE = '', CM_BUSY = '', CM_DRAFTS = lsGet('comment-drafts') || {}, CM_PULSE = false;
 function leoCommentsAllowed() { return !!ME && ME.u === 'saygoida'; }
 function leoCommentQueue() {
   if (!leoCommentsAllowed()) return [];
@@ -1511,7 +1589,7 @@ function cmPending() {
 function cmReason(c) { return c.cm ? '🟠 Комментарий старше суток — обновите следующий шаг' : '🔴 Комментариев ещё нет'; }
 function cmEditor(c, place) {
   return '<form class="cm-editor" data-cm-form="' + esc(c.k) + '" data-place="' + place + '"><textarea aria-label="Комментарий по кандидату ' + esc(c.n) + '" placeholder="Что нового и какой следующий шаг?"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + esc(CM_DRAFTS[c.k] || '') + '</textarea>'
-    + '<div class="acts"><button class="b main" type="submit"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + (CM_BUSY === c.k ? '<span class="spin"></span> Сохраняю' : place === 'queue' ? 'Сохранить и следующий →' : 'Сохранить') + '</button><button class="b" type="button" data-cm-cancel' + (CM_BUSY === c.k ? ' disabled' : '') + '>Отмена</button></div></form>';
+    + '<div class="acts"><button class="b main" type="submit"' + (CM_BUSY === c.k ? ' disabled' : '') + '>' + (CM_BUSY === c.k ? '<span class="spin"></span> Сохраняю' : place === 'queue' ? 'Сохранить и следующий →' : 'Сохранить') + '</button><button class="b" type="button" data-cm-cancel' + (CM_BUSY === c.k ? ' disabled' : '') + '>Отмена</button></div><div class="sub" data-comment-status role="status"></div></form>';
 }
 function cmReminderHtml() {
   if (leoCommentsAllowed()) return '';
@@ -1549,18 +1627,22 @@ function bindQuickComments() {
   const next = $('[data-cm-next]'); if (next) next.onclick = () => { const pending = cmPending(), i = pending.findIndex(c => c.k === CM_PICK); CM_PICK = pending[(i + 1) % pending.length].k; CM_OPEN = ''; cmRedraw(); };
   app.querySelectorAll('[data-cm-form]').forEach(form => {
     const key = form.dataset.cmForm, input = form.querySelector('textarea');
-    input.oninput = () => { CM_DRAFTS[key] = input.value; };
+    input.oninput = () => commentDraft(key, input.value);
     form.querySelector('[data-cm-cancel]').onclick = () => { CM_OPEN = ''; if (form.dataset.place === 'queue') S.leoQueue = false; cmRedraw(); };
     form.onsubmit = async e => {
       e.preventDefault(); if (CM_BUSY) return;
       const text = input.value.trim(); if (text.length < 3) { toast('Напишите хотя бы пару слов'); input.focus(); return; }
-      CM_DRAFTS[key] = input.value; CM_BUSY = key; form.querySelectorAll('button,textarea').forEach(el => el.disabled = true);
+      commentDraft(key, input.value); CM_BUSY = key; form.querySelectorAll('button,textarea').forEach(el => el.disabled = true);
+      const submit = form.querySelector('[type="submit"]'), label = submit.innerHTML; submit.innerHTML = '<span class="spin"></span> Сохраняю';
+      form.querySelector('[data-comment-status]').textContent = '';
       try {
-        await api('comment', { k: key, text: text });
-        const c = LIST.find(c => c.k === key); if (c) { c.cm = [Date.now(), ME.name || ME.u, text]; c.teamCm = true; }
-        delete CM_DRAFTS[key]; CM_OPEN = ''; CM_BUSY = ''; LDIRTY = false; lsSet('list', LIST);
+        const c = LIST.find(c => c.k === key); if (!c) throw new Error('Обновите список кандидатов перед сохранением.');
+        await saveCandidateComment(c, text);
+        c.cm = [Date.now(), ME.name || ME.u, text]; c.teamCm = true;
+        clearCommentDraft(key, text); CM_OPEN = ''; CM_BUSY = ''; LDIRTY = false; lsSet('list', LIST);
         hap(); toast('✅ Комментарий сохранён'); cmRedraw();
-      } catch (err) { CM_BUSY = ''; toast(err.message); hap('error'); if (form.isConnected) form.querySelectorAll('button,textarea').forEach(el => el.disabled = false); }
+      } catch (err) { if (form.isConnected) form.querySelector('[data-comment-status]').textContent = err.message; hap('error'); }
+      finally { CM_BUSY = ''; if (form.isConnected) { form.querySelectorAll('button,textarea').forEach(el => el.disabled = false); submit.innerHTML = label; } }
     };
   });
 }
