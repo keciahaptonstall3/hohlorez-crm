@@ -388,6 +388,34 @@ input,textarea,select{transition:border-color 160ms ease}
 @keyframes emo-snap{0%,51%,58%,100%{opacity:0}52%,55%{opacity:1}}
 @media(max-width:359px){.emo-visitor{width:176px;height:134px}}
 @media(prefers-reduced-motion:reduce){.emo-visitor{display:none;animation:none}.emo-visitor *{animation:none!important}}
+/* Recent candidate comments, shared by both CRM themes. */
+.recent-view .toprow{align-items:center;gap:12px}
+.recent-view .h1{font-size:clamp(19px,4.8vw,25px);line-height:1.25}
+.recent-view #recent-refresh{flex:none;min-height:44px;font-size:13px;padding:8px 12px}
+.recent-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:8px 0 18px}
+.recent-summary>.sub{flex-basis:100%}
+.recent-feed{display:grid;gap:12px}
+.recent-comment{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:18px;min-width:0}
+.recent-comment-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.recent-candidate{text-align:left;font-weight:600;font-size:17px;color:var(--blue);padding:4px 0;min-height:44px;overflow-wrap:anywhere}
+.recent-team{font-size:12px;color:var(--muted)}
+.recent-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;font-size:12px;color:var(--muted);margin:3px 0 12px}
+.recent-meta time{font-variant-numeric:tabular-nums;white-space:nowrap}
+.recent-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.recent-full>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--blue);font-size:13px}
+.recent-full[open]+.recent-preview{display:none}
+.recent-footer{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:14px;padding:22px 0}
+.recent-footer .b{min-height:44px}
+.recent-error{border:1px solid var(--bad);border-radius:12px;color:var(--bad);padding:12px;margin-bottom:16px;overflow-wrap:anywhere}
+[data-theme="apple-glass"] .recent-comment{background:var(--glass-solid);box-shadow:0 2px 8px #00000006}
+@media(max-width:420px){.recent-view .toprow{align-items:flex-start}.recent-view .h1{max-width:210px}.recent-comment{padding:14px}.recent-candidate{font-size:16px}}
+
+[data-theme="apple-glass"] .nav [data-t="recent"]{--nav-icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M22%2017a2%202%200%200%201-2%202H6.828a2%202%200%200%200-1.414.586l-2.202%202.202A.71.71%200%200%201%202%2021.286V5a2%202%200%200%201%202-2h16a2%202%200%200%201%202%202z%22%20%2F%3E%3C%2Fsvg%3E")}
+
+.recent-view .top{position:static}
+[data-theme="apple-glass"] .recent-view .h1{font-size:clamp(20px,4.8vw,28px);line-height:1.25}
+.recent-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+@media(max-width:999px){[data-theme="apple-glass"] .nav:has([data-t="recent"]) button{flex:1 0 82px}}
 </style>
 </head>
 <body>
@@ -517,13 +545,14 @@ async function shrink(file) {                                  // фото — �
 function nav() {
   const requestEmoji = team => (ME.teamList.find(t => t.t === team) || {}).e || '📥';
   const tabs = (ME.ind ? [['ind', requestEmoji('Команда 4'), 'Заявки']] : []).concat(ME.taker ? [['call', requestEmoji((ME.teams || [])[0]), 'Заявки']] : []).concat([['list', '🧳', 'Кандидаты'], ['arrived', '🛬', 'Долетевшие'], ['board', '🛫', 'Табло'], ['funnel', '📊', 'Воронка']]);
+  if (recentCommentsAllowed()) tabs.splice(tabs.findIndex(t => t[0] === 'list') + 1, 0, ['recent', '💬', 'Комментарии']);
   if (focusAllowed()) tabs.splice(tabs.findIndex(t => t[0] === 'list') + 1, 0, ['focus', '🍆', 'Фокус']);
   if (ME.boss || ME.rep) tabs.push(['rep', '📋', 'Отчёт']);
   $('#nav').innerHTML = tabs.map(t => '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] && !stack.length ? 'on' : '') + '"><span class="e">' + t[1] + '</span>' + t[2] + '</button>').join('');
   $('#nav').classList.remove('hid');
   const selected = $('#nav').querySelector('button.on');
   if (selected) $('#nav').scrollLeft = Math.max(0, selected.offsetLeft - ($('#nav').clientWidth - selected.offsetWidth) / 2);
-  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.legacyRep = false; S.tab = b.dataset.t; render(); });
+  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => { stack = []; S.legacyRep = false; S.tab = b.dataset.t; if (S.tab === 'recent') RECENT = {data:null,items:[],next:null,y:0}; render(); });
 }
 function back() { stack.pop(); render(); }
 function candidateDefaultTeams() {
@@ -539,6 +568,7 @@ function applyCandidateDefaults() {
 }
 function render() {
   if (ME && ME.language === 'id') return renderVino();
+  RECENTSEQ++;
   CARDSEQ++; app.dataset.cardKey = "";
   clearInterval(boardTimer); clearInterval(callTimer);
   applyCandidateDefaults();
@@ -552,11 +582,62 @@ function render() {
   if (S.tab === 'focus' && focusAllowed()) return showFocus();
   if (S.tab === 'arrived') { const y = S.ay || 0; S.ay = 0; const p = showArrived(); if (y) p.then(() => { if (!stack.length && S.tab === 'arrived') window.scrollTo(0, y); }); return p; }
   if (S.tab === 'list') { const y = S.ly || 0; S.ly = 0; const p = showList(); if (y) { window.scrollTo(0, y); p.then(() => window.scrollTo(0, y)); } return p; }   // назад из карточки — на то же место списка
+  if (S.tab === 'recent') return showRecentComments();
   if (S.tab === 'board') return showBoard();
   if (S.tab === 'funnel') return analyticsAllowed() ? showAnalytics('funnel') : showView('f', 'Воронка');
   if (S.tab === 'rep') return showRep();
 }
 
+
+// Owner's rolling 24-hour feed; candidate history remains in the existing card.
+let RECENT = {data:null, items:[], next:null, y:0}, RECENTSEQ = 0;
+function recentCommentsAllowed() { return !!(ME && ME.boss && ME.u === 'wrkinrussia'); }
+function recentCommentHtml(c) {
+  const text = String(c.text || ''), long = text.length > 700;
+  return '<article class="recent-comment"><div class="recent-comment-top"><button type="button" class="recent-candidate" data-rc-card="' + esc(c.key) + '" aria-label="Открыть карточку: ' + esc(c.name) + '">' + esc(c.name) + '<span aria-hidden="true"> ↗</span></button><span class="recent-team">' + esc(c.team || 'Без команды') + '</span></div>'
+    + '<div class="recent-meta"><span>' + esc(c.author) + '</span><time datetime="' + new Date(c.ts).toISOString() + '">' + esc(fmt(c.ts)) + ' МСК</time></div>'
+    + (long ? '<details class="recent-full"><summary>Показать полный комментарий</summary><div class="recent-text">' + esc(text) + '</div></details><div class="recent-text recent-preview">' + esc(text.slice(0,700)) + '…</div>' : '<div class="recent-text">' + esc(text) + '</div>') + '</article>';
+}
+function recentCommentsContent() {
+  const d = RECENT.data;
+  return '<header class="top"><div class="toprow"><h1 class="h1">Комментарии за сутки</h1><button type="button" class="b" id="recent-refresh" aria-label="Обновить комментарии">↻ Обновить</button></div><div class="sub">Последние 24 часа · все команды · новые сверху</div></header>'
+    + '<div class="wrap"><div class="recent-summary" id="recent-summary" role="status">' + (d ? '<strong>Комментарии: ' + d.total + '</strong><span>Кандидаты: ' + d.candidates + '</span><span class="sub">Обновлено ' + esc(fmt(d.at)) + ' МСК</span>' : 'Загружаю комментарии…') + '</div>'
+    + '<div id="recent-error" class="recent-error" role="alert" hidden></div><div class="recent-feed" id="recent-feed">' + (d ? RECENT.items.map(recentCommentHtml).join('') || '<div class="empty">За последние 24 часа комментариев нет.</div>' : '<div class="empty"><span class="spin"></span></div>') + '</div>'
+    + '<div class="recent-footer"><span class="sub" id="recent-count">' + (d && d.total ? 'Показано ' + RECENT.items.length + ' из ' + d.total : '') + '</span><button type="button" class="b" id="recent-more"' + (RECENT.next ? '' : ' hidden') + '>Показать ещё</button></div></div>';
+}
+function bindRecentComments(root) {
+  root.querySelector('#recent-refresh').onclick = () => loadRecentComments(root, false);
+  root.querySelector('#recent-more').onclick = () => loadRecentComments(root, true);
+  root.querySelectorAll('[data-rc-card]').forEach(b => b.onclick = () => { RECENT.y = window.scrollY; stack.push({kind:'card', k:b.dataset.rcCard}); render(); });
+}
+async function loadRecentComments(root, more) {
+  const seq = ++RECENTSEQ, current = () => seq === RECENTSEQ && root.isConnected && !stack.length && S.tab === 'recent' && recentCommentsAllowed();
+  if (!current() || (more && !RECENT.next)) return;
+  root.setAttribute('aria-busy','true');
+  const button = root.querySelector(more ? '#recent-more' : '#recent-refresh'), restoreFocus = document.activeElement === button;
+  root.querySelector('#recent-refresh').disabled = true; root.querySelector('#recent-more').disabled = true;
+  button.textContent = more ? 'Загружаю…' : 'Обновляю…'; root.querySelector('#recent-error').hidden = true;
+  try {
+    const d = await api('recentcomments', more ? {at:RECENT.data.at, before:RECENT.next} : {});
+    if (!current()) return;
+    RECENT = {data:d, items:more ? RECENT.items.concat(d.items) : d.items, next:d.next, y:more ? RECENT.y : 0};
+    root.innerHTML = recentCommentsContent(); bindRecentComments(root);
+    if (restoreFocus) root.querySelector(more && d.next ? '#recent-more' : '#recent-refresh').focus({preventScroll:true});
+  } catch (e) {
+    if (!current()) return;
+    const error = root.querySelector('#recent-error'); error.textContent = e.message; error.hidden = false;
+    if (!RECENT.data) { root.querySelector('#recent-feed').innerHTML = ''; root.querySelector('#recent-summary').textContent = 'Не удалось загрузить комментарии. Нажмите «Обновить».'; }
+  } finally {
+    if (current()) { root.removeAttribute('aria-busy'); root.querySelector('#recent-refresh').disabled = false; root.querySelector('#recent-more').disabled = false; root.querySelector('#recent-refresh').textContent = '↻ Обновить'; root.querySelector('#recent-more').textContent = 'Показать ещё'; }
+  }
+}
+function showRecentComments() {
+  if (!recentCommentsAllowed()) { RECENT = {data:null,items:[],next:null,y:0}; app.innerHTML = '<div class="empty">Нет доступа</div>'; return; }
+  app.innerHTML = '<section class="recent-view" aria-label="Комментарии за сутки">' + recentCommentsContent() + '</section>';
+  const root = app.querySelector('.recent-view'); bindRecentComments(root);
+  if (RECENT.y) window.scrollTo(0, RECENT.y);
+  if (!RECENT.data || Date.now() - RECENT.data.at > 60000) return loadRecentComments(root, false);
+}
 
 // Full history remains on the server. Debounce requests and discard stale query responses.
 let CSEARCH = {q:'', keys:new Set(), hits:new Map(), loading:false, error:'', done:false}, CSEARCH_TIMER = null, CSEARCH_SEQ = 0;
