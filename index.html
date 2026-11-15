@@ -416,6 +416,19 @@ input,textarea,select{transition:border-color 160ms ease}
 [data-theme="apple-glass"] .recent-view .h1{font-size:clamp(20px,4.8vw,28px);line-height:1.25}
 .recent-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
 @media(max-width:999px){[data-theme="apple-glass"] .nav:has([data-t="recent"]) button{flex:1 0 82px}}
+.recent-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.recent-actions .b{flex:1 1 145px;min-height:44px;padding:10px 12px;font-size:13px}
+.recent-detail{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);min-width:0}
+.recent-detail h2{font-size:16px;margin:0 0 4px}
+.recent-question label{display:grid;gap:9px;font-size:14px;font-weight:600}
+.recent-question textarea{min-height:110px;margin:0 0 10px;font-size:15px;font-weight:400;max-height:45vh}
+.recent-question-status{font-size:13px;line-height:1.5;color:var(--bad);margin-top:10px;overflow-wrap:anywhere}
+.recent-history-list{display:grid;gap:0}
+.recent-history-item{padding:16px 0;border-bottom:1px solid var(--line)}
+.recent-history-item:last-child{border-bottom:0}
+.recent-history-item .recent-text{font-size:14px}
+.recent-history-item .recent-meta{margin-bottom:8px}
+
 </style>
 </head>
 <body>
@@ -596,7 +609,7 @@ function recentCommentHtml(c) {
   const text = String(c.text || ''), long = text.length > 700;
   return '<article class="recent-comment"><div class="recent-comment-top"><button type="button" class="recent-candidate" data-rc-card="' + esc(c.key) + '" aria-label="Открыть карточку: ' + esc(c.name) + '">' + esc(c.name) + '<span aria-hidden="true"> ↗</span></button><span class="recent-team">' + esc(c.team || 'Без команды') + '</span></div>'
     + '<div class="recent-meta"><span>' + esc(c.author) + '</span><time datetime="' + new Date(c.ts).toISOString() + '">' + esc(fmt(c.ts)) + ' МСК</time></div>'
-    + (long ? '<details class="recent-full"><summary>Показать полный комментарий</summary><div class="recent-text">' + esc(text) + '</div></details><div class="recent-text recent-preview">' + esc(text.slice(0,700)) + '…</div>' : '<div class="recent-text">' + esc(text) + '</div>') + '</article>';
+    + (long ? '<details class="recent-full"><summary>Показать полный комментарий</summary><div class="recent-text">' + esc(text) + '</div></details><div class="recent-text recent-preview">' + esc(text.slice(0,700)) + '…</div>' : '<div class="recent-text">' + esc(text) + '</div>') + recentActionsHtml(c) + '</article>';
 }
 function recentCommentsContent() {
   const d = RECENT.data;
@@ -606,6 +619,7 @@ function recentCommentsContent() {
     + '<div class="recent-footer"><span class="sub" id="recent-count">' + (d && d.total ? 'Показано ' + RECENT.items.length + ' из ' + d.total : '') + '</span><button type="button" class="b" id="recent-more"' + (RECENT.next ? '' : ' hidden') + '>Показать ещё</button></div></div>';
 }
 function bindRecentComments(root) {
+  bindRecentActions(root);
   root.querySelector('#recent-refresh').onclick = () => loadRecentComments(root, false);
   root.querySelector('#recent-more').onclick = () => loadRecentComments(root, true);
   root.querySelectorAll('[data-rc-card]').forEach(b => b.onclick = () => { RECENT.y = window.scrollY; stack.push({kind:'card', k:b.dataset.rcCard}); render(); });
@@ -637,6 +651,108 @@ function showRecentComments() {
   const root = app.querySelector('.recent-view'); bindRecentComments(root);
   if (RECENT.y) window.scrollTo(0, RECENT.y);
   if (!RECENT.data || Date.now() - RECENT.data.at > 60000) return loadRecentComments(root, false);
+}
+
+// Inline tools share the candidate's stable key, even when it occurs twice in the feed.
+let RECENT_OPEN = null, RECENT_HISTORY = new Map(), RECENT_Q_BUSY = new Set(), RECENT_Q_DRAFTS = lsGet('recent-question-drafts') || {};
+function recentEntryId(c) { return c.row + ':' + c.ts; }
+function recentQuestionDraft(key, text) { RECENT_Q_DRAFTS[key] = text; lsSet('recent-question-drafts', RECENT_Q_DRAFTS); }
+function recentActionsHtml(c) {
+  const id = recentEntryId(c), opened = RECENT_OPEN && RECENT_OPEN.id === id;
+  let h = '<div class="recent-actions"><button type="button" class="b" data-recent-ask="' + esc(id) + '" aria-expanded="' + !!(opened && RECENT_OPEN.mode === 'ask') + '"' + (c.team ? '' : ' disabled title="Сначала назначьте команду в карточке кандидата"') + '>Задать вопрос</button><button type="button" class="b" data-recent-history="' + esc(id) + '" aria-expanded="' + !!(opened && RECENT_OPEN.mode === 'history') + '">История комментариев</button></div>';
+  if (!opened) return h;
+  if (RECENT_OPEN.mode === 'ask') {
+    const busy = RECENT_Q_BUSY.has(c.key);
+    return h + '<form class="recent-detail recent-question" data-recent-question="' + esc(id) + '"><label>Вопрос команде · ' + esc(c.team) + '<textarea minlength="3" maxlength="3000" required placeholder="Что нужно уточнить по кандидату?"' + (busy ? ' disabled' : '') + '>' + esc(RECENT_Q_DRAFTS[c.key] || '') + '</textarea></label><div class="sub">Вопрос получит команда кандидата. Ответ появится в истории и придёт вам в бот.</div><div class="recent-actions"><button type="submit" class="b main"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Отправляю…' : 'Отправить вопрос') + '</button><button type="button" class="b" data-recent-close>Свернуть</button></div><div class="recent-question-status" role="status">' + esc(RECENT_OPEN.error || '') + '</div></form>';
+  }
+  const state = RECENT_HISTORY.get(c.key), d = state && state.data;
+  h += '<section class="recent-detail" aria-label="История комментариев: ' + esc(c.name) + '"><h2>История комментариев' + (d ? ' · ' + d.total : '') + '</h2><div class="sub">За всё время · новые сверху</div>';
+  if (d) h += '<div class="recent-history-list">' + (state.items.map(x => '<div class="recent-history-item"><div class="recent-meta"><span>' + esc(x.author) + '</span><span>' + (x.ts ? esc(fmt(x.ts, 'dy')) + ' ' + esc(fmt(x.ts).slice(-5)) + ' МСК' : 'Дата не указана') + '</span></div><div class="recent-text">' + esc(x.text) + '</div></div>').join('') || '<p class="sub">Комментариев пока нет.</p>') + '</div>';
+  if (state && state.error) h += '<p class="recent-question-status" role="alert">' + esc(state.error) + '</p>';
+  if (!d || (state && state.loading)) h += '<p class="sub" role="status">' + (state && state.loading ? 'Загружаю историю…' : '') + '</p>';
+  h += '<div class="recent-actions"><button type="button" class="b" data-recent-history-refresh' + (state && state.loading ? ' disabled' : '') + '>Обновить историю</button>' + (d && d.next ? '<button type="button" class="b" data-recent-history-more' + (state.loading ? ' disabled' : '') + '>Ещё комментарии</button>' : '') + '<button type="button" class="b" data-recent-close>Свернуть</button></div></section>';
+  return h;
+}
+function redrawRecent(root) {
+  if (!root.isConnected || S.tab !== 'recent' || stack.length || !recentCommentsAllowed()) return;
+  root.innerHTML = recentCommentsContent(); bindRecentComments(root);
+}
+async function loadRecentHistory(root, c, more) {
+  const old = RECENT_HISTORY.get(c.key);
+  if (old && old.loading || more && !(old && old.data && old.data.next)) return;
+  const state = {data:more ? old.data : null, items:more ? old.items : [], loading:true, error:''};
+  RECENT_HISTORY.set(c.key,state); redrawRecent(root);
+  try {
+    const d = await api('commenthistory', more ? {k:c.key,at:old.data.at,before:old.data.next} : {k:c.key});
+    if (RECENT_HISTORY.get(c.key) !== state) return;
+    state.data = d; state.items = more ? old.items.concat(d.items) : d.items;
+  } catch(e) { state.error = e.message; }
+  finally { state.loading = false; if (RECENT_HISTORY.get(c.key) === state && RECENT_OPEN && RECENT_OPEN.key === c.key && RECENT_OPEN.mode === 'history') redrawRecent(root); }
+}
+async function saveRecentQuestion(c, text) {
+  text = String(text || '').trim();
+  if (text.length < 3 || text.length > 3000) throw new Error('Напишите вопрос от 3 до 3000 символов.');
+  const storageKey = 'recent-question-write:' + c.key;
+  let request = lsGet(storageKey);
+  if (request) {
+    const receipt = await api('agentstatus',{id:request.id});
+    if (receipt && receipt.status === 'done') {
+      lsSet(storageKey,null);
+      if (request.text === text) return receipt;
+      request = null;
+    } else if (!receipt || receipt.status !== 'not_found') throw new Error('Результат предыдущей отправки пока не подтверждён. Проверьте историю комментариев; повторная отправка заблокирована, чтобы избежать дубля.');
+    else if (request.text !== text) throw new Error('Предыдущий вопрос ещё проверяется. Черновик сохранён. Сначала проверьте его в истории комментариев.');
+  }
+  if (!request) {
+    request = {id:'ag_ui_' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g,'') : Date.now().toString(36) + Math.random().toString(36).slice(2)), k:c.key, text:text};
+    lsSet(storageKey,request);
+    if (lsGet(storageKey)?.id !== request.id) throw new Error('Не удалось сохранить запрос на устройстве. Освободите место и повторите.');
+  }
+  try {
+    const receipt = await api('recentask',request);
+    if (!receipt || receipt.id !== request.id || receipt.status !== 'done') throw new Error('Отправка пока не подтверждена. Проверьте историю комментариев перед повтором.');
+    lsSet(storageKey,null); return receipt;
+  } catch(e) {
+    if (/^(auth|auth_old|noaccess)$|^Таблица занята|^Нет доступа|^Кандидат не найден|^Сначала назначьте команду|^Напишите вопрос/.test(e.serverError || '')) lsSet(storageKey,null);
+    throw e;
+  }
+}
+function bindRecentActions(root) {
+  const entry = id => RECENT.items.find(c => recentEntryId(c) === id);
+  const toggle = (id,mode) => {
+    const c = entry(id); if (!c) return;
+    RECENT_OPEN = RECENT_OPEN && RECENT_OPEN.id === id && RECENT_OPEN.mode === mode ? null : {id:id,key:c.key,mode:mode,error:''};
+    redrawRecent(root);
+    if (!RECENT_OPEN) return;
+    if (mode === 'ask') root.querySelector('.recent-question textarea')?.focus({preventScroll:true});
+    else { const h=RECENT_HISTORY.get(c.key); if (!h || !h.data || Date.now()-h.data.at>60000) loadRecentHistory(root,c,false); }
+  };
+  root.querySelectorAll('[data-recent-ask]').forEach(b => b.onclick = () => toggle(b.dataset.recentAsk,'ask'));
+  root.querySelectorAll('[data-recent-history]').forEach(b => b.onclick = () => toggle(b.dataset.recentHistory,'history'));
+  root.querySelectorAll('[data-recent-close]').forEach(b => b.onclick = () => { RECENT_OPEN=null; redrawRecent(root); });
+  if (!RECENT_OPEN) return;
+  const c = entry(RECENT_OPEN.id); if (!c) return;
+  const refresh=root.querySelector('[data-recent-history-refresh]'), more=root.querySelector('[data-recent-history-more]');
+  if(refresh)refresh.onclick=()=>loadRecentHistory(root,c,false);
+  if(more)more.onclick=()=>loadRecentHistory(root,c,true);
+  const form=root.querySelector('[data-recent-question]'); if(!form)return;
+  const input=form.querySelector('textarea'); input.oninput=()=>recentQuestionDraft(c.key,input.value);
+  form.onsubmit=async e=>{
+    e.preventDefault(); if(RECENT_Q_BUSY.has(c.key))return;
+    const text=input.value.trim();recentQuestionDraft(c.key,input.value);
+    if(text.length<3 || text.length>3000){form.querySelector('[role="status"]').textContent='Напишите вопрос от 3 до 3000 символов.';return;}
+    RECENT_Q_BUSY.add(c.key); redrawRecent(root);
+    try {
+      await saveRecentQuestion(c,text);
+      if(String(RECENT_Q_DRAFTS[c.key]||'').trim()===text)recentQuestionDraft(c.key,'');
+      RECENT_HISTORY.delete(c.key); LDIRTY=true;
+      if(RECENT_OPEN && RECENT_OPEN.key===c.key && RECENT_OPEN.mode==='ask')RECENT_OPEN=null;
+      toast('Вопрос сохранён в истории кандидата'); hap();
+      if(root.isConnected && S.tab==='recent' && !stack.length)await loadRecentComments(root,false);
+    } catch(error) {
+      if(RECENT_OPEN && RECENT_OPEN.key===c.key && RECENT_OPEN.mode==='ask')RECENT_OPEN.error=error.message;
+    } finally { RECENT_Q_BUSY.delete(c.key);redrawRecent(root); }
+  };
 }
 
 // Full history remains on the server. Debounce requests and discard stale query responses.
