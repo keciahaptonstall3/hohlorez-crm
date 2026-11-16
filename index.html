@@ -891,9 +891,18 @@ function requestCandidateSearch(query, draw) {
     if (/^\+?[\d\s().-]+$/.test(q) && q.replace(/\D/g, '').length >= 7 &&
         !LIST.some(c => candidateQueryMatches(c, q))) {
       try {
-        const leads = await api('find', {q: q.replace(/\D/g, '')});
+        const digits = q.replace(/\D/g, '');
+        const leads = await api('find', {q: digits});
         if (seq !== CSEARCH_SEQ) return;
-        CSEARCH.phoneLeads = leads.filter(lead => !LIST.some(c => c.k === lead.k));
+        if (!leads.length && ME.moderator) {
+          // A duplicate can match only the final digits. Require the full number here.
+          const duplicate = await api('dup', {phone: digits});
+          if (seq !== CSEARCH_SEQ) return;
+          if (duplicate && !duplicate.fresh &&
+              ME.teamList.some(team => team.t === duplicate.t) &&
+              String(duplicate.ph || '').replace(/\D/g, '') === digits) leads.push(duplicate);
+        }
+        CSEARCH.phoneLeads = leads.filter(lead => !LIST.some(c => c.k === lead.k && candidateQueryMatches(c, q)));
       } catch (error) {
         if (seq !== CSEARCH_SEQ) return;
         CSEARCH.error = error.message;
