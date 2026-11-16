@@ -466,19 +466,53 @@ function staffName(value) {
 function staffHtml(value) { return esc(staffName(value)); }
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
-async function api(op, a, again) {
-  const controller = new AbortController(), timeout = op === 'upload' || op === 'vino-spend' ? 90000 : 35000;
-  let timer, j;
+const FAST_READ_API = 'https://186.246.45.224/v1/read';
+const FAST_READ_OPS = new Set(['me','list','card','recentcomments','commenthistory']);
+let FAST_READ_RETRY_AT = 0;
+window.CRM_READ_METRICS = [];
+async function crmTransport(op, a, allowFast = true) {
+  const started = performance.now(), init = tg ? tg.initData : '';
+  const body = JSON.stringify({init:init, op:op, a:a || {}});
+  const request = async (url, timeout) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try { const r = await fetch(url, {method:'POST', signal:controller.signal, body:body}); return {r:r, j:await r.json()}; }
+    finally { clearTimeout(timer); }
+  };
+  const metric = source => {
+    window.CRM_READ_METRICS.push({op:op,source:source,ms:Math.round(performance.now()-started)});
+    if (window.CRM_READ_METRICS.length > 50) window.CRM_READ_METRICS.shift();
+  };
+  if (allowFast && FAST_READ_OPS.has(op) && Date.now() >= FAST_READ_RETRY_AT && new URLSearchParams(init).has('signature')) {
+    let reply;
+    try { reply = await request(FAST_READ_API, 2500); }
+    catch (_) { FAST_READ_RETRY_AT = Date.now() + 15000; }
+    if (reply) {
+      const {r,j} = reply;
+      if (r.ok && j && j.ok === 1) {
+        metric('database');
+        if (op === 'me' && j.rememberNeeded) crmTransport('me', {}, false).catch(() => {});
+        return j;
+      }
+      if (r.status === 401 || r.status === 403 || r.status === 404 || r.status === 400) {
+        const errors = {AUTH_FAILED:'auth',AUTH_EXPIRED:'auth_old',NO_ACCESS:'noaccess',NOT_FOUND:'Кандидат не найден',BAD_REQUEST:'Некорректный запрос'};
+        return {err:errors[j && j.err] || 'Нет доступа к CRM'};
+      }
+      FAST_READ_RETRY_AT = Date.now() + 15000;
+    }
+  }
   try {
-    j = await Promise.race([
-      (async () => {
-        const r = await fetch(API, { method: 'POST', signal: controller.signal, body: JSON.stringify({ init: tg ? tg.initData : '', op: op, a: a || {} }) });
-        if (!r.ok) throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.');
-        return r.json();
-      })(),
-      new Promise((resolve, reject) => { timer = setTimeout(() => { reject(new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.')); controller.abort(); }, timeout); })
-    ]);
-  } finally { clearTimeout(timer); }
+    const {r,j} = await request(API, op === 'upload' || op === 'vino-spend' ? 90000 : 35000);
+    if (!r.ok) throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.');
+    if (FAST_READ_OPS.has(op)) metric('google');
+    return j;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.');
+    throw e;
+  }
+}
+async function api(op, a, again) {
+  const j = await crmTransport(op, a);
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Не удалось прочитать ответ сервера. Попробуйте позже.');
   if (j.err && /занята/.test(j.err) && !again && op !== 'agentwrite') { await new Promise(res => setTimeout(res, 2000)); return api(op, a, 1); }
   if (j.err) {
@@ -1339,6 +1373,7 @@ function showAdd(arrived = false) {
 }
 
 // ---------- карточка ----------
+function visaSection(v) { return v ? '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub">Почта и пароль, внесённые менеджером</div><div class="form"><label class="sub" for="visa-email">Почта eVisa</label><input id="visa-email" type="email" autocomplete="off" placeholder="Почта для входа" value="' + esc(v.email) + '"><button class="b" id="visa-copy-email">📋 Скопировать почту</button><label class="sub" for="visa-password">Пароль</label><input id="visa-password" type="password" autocomplete="new-password" placeholder="Пароль для входа" value="' + esc(v.password) + '"><div class="two"><button class="b" id="visa-show">Показать пароль</button><button class="b" id="visa-copy-password">📋 Скопировать пароль</button></div><button class="b main" id="visa-save">Сохранить данные eVisa</button><a class="b" href="https://evisa.kdmid.ru" data-link style="display:block;text-align:center">↗ Открыть evisa.kdmid.ru</a></div></div>' : ''; }
 let CARDSEQ = 0;
 async function showCard(k, keep, savedScope) {
   const route = stack[stack.length - 1], seq = ++CARDSEQ;
@@ -1373,7 +1408,7 @@ async function showCard(k, keep, savedScope) {
     + (c.can ? '<div class="sub" style="margin-top:10px">Нажмите на документ — откроется камера или галерея, фото сохранится и документ отметится. <button class="more" id="mk" style="display:inline;width:auto;padding:0">Отметить без файла</button></div><div class="form"><div class="two"><select id="ft">' + ME.ftypes.map(t => '<option>' + esc(t) + '</option>').join('') + '</select><button class="b" id="up">Загрузить файл</button></div><input type="file" id="file" class="hid" accept="image/*,video/*,application/pdf"></div>' : '')
     + (c.files.length ? '<ul class="list" style="margin-top:8px">' + c.files.slice().reverse().map(f => '<li class="attachment-row"><div class="attachment-info"><div class="who">' + fmt(f[0]) + ', ' + staffHtml(f[2]) + '</div>' + esc(f[1]) + (f[4] ? ' · <a href="' + esc(f[4]) + '" data-link>Drive</a>' : '') + '</div>' + (c.can && f[5] ? '<button type="button" class="attachment-delete" data-delete-file="' + esc(f[5]) + '" data-file-type="' + esc(f[1]) + '" aria-label="Удалить вложение: ' + esc(f[1]) + '">×</button>' : '') + '</li>').join('') + '</ul>'
       + '<button class="more" id="sf">Прислать все файлы в бот (' + c.files.length + ')</button>' : '<div class="sub" style="margin-top:10px">Файлов пока нет</div>') + '</div>';
-  let visaH = ''; if (c.evisa) visaH = '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub">Почта и пароль, внесённые менеджером</div><div class="form"><label class="sub" for="visa-email">Почта eVisa</label><input id="visa-email" type="email" autocomplete="off" placeholder="Почта для входа" value="' + esc(c.evisa.email) + '"><button class="b" id="visa-copy-email">📋 Скопировать почту</button><label class="sub" for="visa-password">Пароль</label><input id="visa-password" type="password" autocomplete="new-password" placeholder="Пароль для входа" value="' + esc(c.evisa.password) + '"><div class="two"><button class="b" id="visa-show">Показать пароль</button><button class="b" id="visa-copy-password">📋 Скопировать пароль</button></div><button class="b main" id="visa-save">Сохранить данные eVisa</button><a class="b" href="https://evisa.kdmid.ru" data-link style="display:block;text-align:center">↗ Открыть evisa.kdmid.ru</a></div></div>';
+  const visaH = '<div id="card-visa">' + (c.evisaPending ? '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub" role="status"><span class="spin"></span> Загружаю данные eVisa…</div></div>' : visaSection(c.evisa)) + '</div>';
   // вылет
   const fv = c.fly ? new Date(c.fly + MSK).toISOString().slice(0, 16) : '';
   let flyH = '<div class="sec"><h2>Вылет <small>по Москве</small></h2><div class="' + (c.fly ? 'flyv' : 'sub') + '">' + (c.fly ? fmt(c.fly, 'dy') + ', ' + fmt(c.fly).slice(6) : 'Дата не назначена') + '</div>'
@@ -1406,7 +1441,7 @@ async function showCard(k, keep, savedScope) {
   app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   app.dataset.cardKey = k;
   if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
-  bindCard(c); observeBudgetCard(c);
+  bindCard(c, typed); observeBudgetCard(c);
 }
 function normalizeRelativePhone(value) {
   // Pasted contacts can contain invisible direction/format marks or typographic separators.
@@ -1476,7 +1511,7 @@ async function flightDocumentNudge(c) {
   const choice = await sheet('🙄 Ну куда ставим вылет?', 'Сначала загрузи: ' + ((c.flightMissing || []).length ? c.flightMissing.join(', ') : 'паспорт или ID') + '. Отметки «документ есть» недостаточно.', [{id:'docs',text:'📎 Загрузить паспорт или ID'},{type:'cancel'}]);
   if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = c.flightMissing && c.flightMissing.length === 1 && c.flightMissing[0] === 'MDAC' ? 'MDAC' : 'Паспорт'; }
 }
-function bindCard(c) {
+function bindCard(c, preservedFields = {}) {
   bindFocus();
   const k = c.k, route = stack[stack.length - 1], view = CARDSEQ;
   const active = () => CARDSEQ === view && stack[stack.length - 1] === route && app.dataset.cardKey === k;
@@ -1505,11 +1540,33 @@ function bindCard(c) {
     };
   }
   on('relatives-open', () => { stack.push({kind:'relatives', k:k, n:c.n}); render(); });
+  const bindVisaControls = () => {
   const copyVisa = async id => { const input = $(id); if (!input || !input.value) return toast('Сначала заполните поле'); try { await navigator.clipboard.writeText(input.value); hap(); toast('Скопировано'); } catch (_) { input.focus(); input.select(); toast('Поле выделено — выберите «Скопировать»'); } };
   on('visa-copy-email', () => copyVisa('#visa-email'));
   on('visa-copy-password', () => copyVisa('#visa-password'));
   on('visa-show', b => { const input = $('#visa-password'); input.type = input.type === 'password' ? 'text' : 'password'; b.textContent = input.type === 'password' ? 'Показать пароль' : 'Скрыть пароль'; });
   on('visa-save', b => run(b, 'evisa', { email: $('#visa-email').value, password: $('#visa-password').value }, 'Данные eVisa сохранены'));
+    const link = $('#card-visa [data-link]');
+    if (link) link.onclick = e => { e.preventDefault(); tg ? tg.openLink(link.href) : window.open(link.href); };
+  };
+  bindVisaControls();
+  const loadVisa = async () => {
+    if (!active()) return;
+    const host = $('#card-visa');
+    host.innerHTML = '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub" role="status"><span class="spin"></span> Загружаю данные eVisa…</div></div>';
+    try {
+      const visa = await api('evisaread', {k:k});
+      if (!active()) return;
+      c.evisa = visa; c.evisaPending = false; host.innerHTML = visaSection(visa);
+      ['visa-email','visa-password'].forEach(id => { const el = document.getElementById(id); if (el && Object.prototype.hasOwnProperty.call(preservedFields,id)) el.value = preservedFields[id]; });
+      bindVisaControls();
+    } catch (_) {
+      if (!active()) return;
+      host.innerHTML = '<div class="sec"><h2>eVisa · Индонезия</h2><div class="sub">Не удалось загрузить данные eVisa.</div><button class="b" id="visa-retry">Повторить</button></div>';
+      on('visa-retry', loadVisa);
+    }
+  };
+  if (c.evisaPending) loadVisa();
   on('candidate-telegram-save', b => run(b, 'telegram', { username: $('#candidate-telegram').value }, 'Telegram сохранён'));
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
@@ -2701,3 +2758,4 @@ async function renderVino() {
 </script>
 </body>
 </html>
+
