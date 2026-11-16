@@ -450,11 +450,84 @@ function lsGet(k) { try { const x = localStorage.getItem('crm' + UID + ':' + k);
 function lsSet(k, v) { try { localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (e) {} }
 let LISTP = null, LDIRTY = false;                          // LDIRTY — данные менялись: список показываем сразу, свежий подтягиваем в фоне
 function loadList(force) {                                  // один запрос списка на всех (старт + экран)
-  if (!LISTP || force) LISTP = api('list').then(d => { LIST = d; resetCandidateSearch(); lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
+  if (!LISTP || force) LISTP = api('list').then(d => { reconcileCardReadCache(d); LIST = d; resetCandidateSearch(); lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
   return LISTP;
 }
 let STAFF_AWARDS = lsGet('staffAwards') || {byName:{},byNick:{}};
 let ME = null, LIST = [], S = { tab: 'list', f: 'a', q: '', country: '', show: 'act', filtersOpen: false }, stack = [], boardTimer = null;
+
+// Per-account UI preferences only; candidate cards never enter persistent storage.
+function candidateFilterPreferences(state, me) {
+  const index = /^t\d+$/.test(state.f || '') ? Number(state.f.slice(1)) : -1;
+  const team = index >= 0 ? me.teamList[index]?.t : '';
+  return {v:1,u:me.u,team:team || '',f:team ? 'team' : state.f,
+    show:state.show, country:String(state.country || '').slice(0,100),pf:state.pf || '',cm:state.cm || '',
+    fromRecruiters:!!state.fromRecruiters,searchFiltered:!!state.searchFiltered,
+    iosDocs:state.iosDocs || '',iosFlag:!!state.iosFlag,iosFlight:!!state.iosFlight,iosRoad:!!state.iosRoad};
+}
+function restoreCandidateFilters() {
+  const p = lsGet('candidate-filters-v1');
+  if (!p || p.v !== 1 || p.u !== ME.u) return;
+  if (p.f === 'team' && typeof p.team === 'string') {
+    const i = ME.teamList.findIndex(t => t.t === p.team);
+    if (i >= 0 && (ME.boss || ME.moderator || (ME.teams || []).includes(p.team))) S.f = 't' + i;
+  } else if (['a','mine','road','fl','fly','x'].includes(p.f)) S.f = p.f;
+  if (['act','done','arch'].includes(p.show)) S.show = p.show;
+  S.country = typeof p.country === 'string' && p.country.length <= 100 ? p.country : '';
+  S.pf = ['pass','nopass'].includes(p.pf) ? p.pf : '';
+  S.cm = ['yes','no','stale'].includes(p.cm) ? p.cm : '';
+  S.fromRecruiters = ME.u === 'wrkinrussia' && p.fromRecruiters === true;
+  S.searchFiltered = p.searchFiltered === true;
+  S.iosDocs = ['missing','complete'].includes(p.iosDocs) ? p.iosDocs : '';
+  for (const k of ['iosFlag','iosFlight','iosRoad']) S[k] = p[k] === true;
+}
+function saveCandidateFilters() {
+  if (ME && UID) lsSet('candidate-filters-v1', candidateFilterPreferences(S, ME));
+}
+
+const CARD_READ_CACHE = new Map(), CARD_CACHE_TTL = 120000, CARD_CACHE_LIMIT = 20;
+let CARD_CACHE_EPOCH = 0, CARD_SESSION_VERIFIED = false;
+const CARD_WRITE_OPS = new Set(['recentask','vino-share','vino-add','vino-comment','vino-spend','comment','docs','fly','spend','stage','ask','upload','deletefile','sendfiles','next','call','recall','add','take','wa','wano','inext','ires','infra','waping','evisa','relative-save','relative-delete','callrequest','addarrived','telegram','agentwrite']);
+function clearCardReadCache() { CARD_READ_CACHE.clear(); CARD_CACHE_EPOCH++; }
+function cardCacheScope() { return ME ? JSON.stringify([UID,ME.u,ME.boss,ME.moderator,ME.taker,ME.teams,ME.language]) : ''; }
+function rememberCardRead(card, epoch) {
+  if (!CARD_SESSION_VERIFIED || epoch !== CARD_CACHE_EPOCH || !card || !card.k) return;
+  const copy = JSON.parse(JSON.stringify(card));
+  copy.evisaPending = !!(copy.evisa || copy.evisaPending); copy.evisa = null;
+  copy.files = (copy.files || []).map(f => f.slice(0,5));
+  CARD_READ_CACHE.delete(copy.k);
+  CARD_READ_CACHE.set(copy.k, {at:Date.now(),scope:cardCacheScope(),card:copy});
+  while (CARD_READ_CACHE.size > CARD_CACHE_LIMIT) CARD_READ_CACHE.delete(CARD_READ_CACHE.keys().next().value);
+}
+function cachedCardRead(k) {
+  const entry = CARD_READ_CACHE.get(k);
+  if (!CARD_SESSION_VERIFIED || !entry || entry.scope !== cardCacheScope() || Date.now()-entry.at > CARD_CACHE_TTL) {
+    CARD_READ_CACHE.delete(k); return null;
+  }
+  CARD_READ_CACHE.delete(k); CARD_READ_CACHE.set(k,entry);
+  return JSON.parse(JSON.stringify(entry.card));
+}
+function reconcileCardReadCache(nextList) {
+  for (const k of CARD_READ_CACHE.keys()) {
+    const old = LIST.find(c => c.k === k), current = nextList.find(c => c.k === k);
+    if (!current || (old && JSON.stringify(old) !== JSON.stringify(current))) CARD_READ_CACHE.delete(k);
+  }
+}
+function cardReadStatus(text, retry, pending) {
+  const old = document.getElementById('card-read-status'); if (old) old.remove();
+  if (!text) return;
+  const status = document.createElement('div'); status.id='card-read-status'; status.className='sub';
+  status.setAttribute('role','status');status.style.cssText='padding:10px 16px;line-height:1.5';
+  status.textContent=text;
+  if (retry) { const button=document.createElement('button');button.className='b';button.type='button';button.textContent='Повторить';button.style.marginLeft='10px';button.onclick=retry;status.append(button); }
+  app.prepend(status);
+  if (pending) status.setAttribute('aria-busy','true');
+}
+function freezeCachedCard() {
+  app.querySelectorAll('input,textarea,select,button').forEach(el => {
+    if (!el.matches('.ios-card-back')) el.disabled = true;
+  });
+}
 
 function staffName(value) {
   const raw=String(value==null?'':value),base=raw.replace(/(?:\s*(?:🎖️?|🏆|🥇|💎|👑))+$/u,'');
@@ -512,13 +585,17 @@ async function crmTransport(op, a, allowFast = true) {
   }
 }
 async function api(op, a, again) {
-  const j = await crmTransport(op, a);
+  const mutates = CARD_WRITE_OPS.has(op);
+  if (mutates) clearCardReadCache();
+  let j;try { j = await crmTransport(op, a); } finally { if (mutates) clearCardReadCache(); }
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Не удалось прочитать ответ сервера. Попробуйте позже.');
   if (j.err && /занята/.test(j.err) && !again && op !== 'agentwrite') { await new Promise(res => setTimeout(res, 2000)); return api(op, a, 1); }
   if (j.err) {
+    if (/^(auth|auth_old|noaccess)$/.test(j.err)) { CARD_SESSION_VERIFIED=false;clearCardReadCache(); }
     const error = new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа к CRM' : j.err);
     error.serverError = j.err; throw error;
   }
+  if (op === 'me') { clearCardReadCache();CARD_SESSION_VERIFIED=true; }
   if (j.staffAwards) { STAFF_AWARDS = j.staffAwards; lsSet('staffAwards',j.staffAwards); }
   refreshGoalsAfterWrite(op);
   return j.d;
@@ -608,10 +685,10 @@ function candidateDefaultTeams() {
 }
 function applyCandidateDefaults() {
   if (!ME) return;
-  const defaultKey = ME.u + ':' + ME.teamList.map(t => t.t).join('|');
+  const defaultKey = JSON.stringify([ME.u,ME.teamList.map(t=>t.t),ME.teams,ME.boss,ME.moderator]);
   if (S.defaultUser === defaultKey) return;
   const teams = candidateDefaultTeams(), i = ME.teamList.findIndex(t => t.t === teams[0]);
-  S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = defaultKey;
+  S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = defaultKey; restoreCandidateFilters();
 }
 function render() {
   if (ME && ME.language === 'id') return renderVino();
@@ -902,6 +979,7 @@ async function showList(reload) {
   if (!LIST.length || reload) { app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; try { await loadList(reload); } catch (e) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
   const searching = !!String(S.q || '').trim(), countries = candidateCountries();
   if (S.country && !countries.includes(S.country)) S.country = '';
+  saveCandidateFilters();
   const teams = ME.teamList.map((t, i) => ['t' + i, t.e]).filter((x, i) => ME.boss || ME.moderator || ME.teams.indexOf(ME.teamList[i].t) >= 0);
   const F = [['a', 'Все']].concat(candidateDefaultTeams().length > 1 ? [['mine', 'Мои команды']] : [], teams, [['road', 'В пути'], ['fl', 'С флагами'], ['fly', 'С датой вылета'], ['pass', 'С паспортом'], ['nopass', 'Без паспортов'], ['x', 'Без команды']]);
   const isOn = k => ['pass','nopass'].includes(k) ? S.pf === k : k === 'a' ? S.f === 'a' && !S.pf : S.f === k;
@@ -946,7 +1024,7 @@ async function showList(reload) {
     bindItems(); bindQuickComments(); farBtn();
   };
   q.oninput = () => { S.q = q.value; requestCandidateSearch(S.q, redrawSearch); redrawSearch(); };
-  $('#search-filtered').onchange = e => { S.searchFiltered = e.target.checked; redrawSearch(); };
+  $('#search-filtered').onchange = e => { S.searchFiltered = e.target.checked; saveCandidateFilters(); redrawSearch(); };
   requestCandidateSearch(S.q, redrawSearch); redrawSearch();
   farBtn(); if (S.show === 'act') waBox();
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const f = b.dataset.f; if (['pass','nopass'].includes(f)) S.pf = S.pf === f ? '' : f; else { S.f = S.f === f ? 'a' : f; if (f === 'a') S.pf = ''; } showList(); });
@@ -1362,15 +1440,40 @@ async function showCard(k, keep, savedScope) {
   const route = stack[stack.length - 1], seq = ++CARDSEQ;
   const active = () => seq === CARDSEQ && stack[stack.length - 1] === route && route && route.kind === 'card' && route.k === k;
   if (!active()) return;
-  const preserve = keep && app.dataset.cardKey === k;
-  if (!preserve) { app.dataset.cardKey = ''; app.innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
-  let c; try { c = await api('card', { k: k }); } catch (e) { if (active()) app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  let preserve = !!keep && app.dataset.cardKey === k;
+  const cached = !preserve && cachedCardRead(k);
+  if (cached) {
+    renderCandidateCard(cached,k,false,null,true);
+    freezeCachedCard();cardReadStatus('Проверяю обновления…',null,true);preserve=true;
+  } else if (!preserve) {
+    app.dataset.cardKey = ''; app.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+  }
+  const preview = app.dataset.cardPreview === '1';
+  if (preserve && !cached) cardReadStatus('Проверяю обновления…',null,true);
+  const epoch = CARD_CACHE_EPOCH;
+  let c;
+  try { c = await api('card', { k: k }); }
+  catch (e) {
+    if (!active()) return;
+    const denied = /^(auth|auth_old|noaccess)$|Нет доступа|Кандидат не найден/.test(e.serverError || e.message || '');
+    if (denied) { clearCardReadCache();app.dataset.cardKey='';app.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+    else if (app.dataset.cardKey === k) cardReadStatus(preview ? 'Не удалось проверить обновления. Показана сохранённая карточка.' : 'Не удалось обновить карточку. Введённый текст сохранён на экране.',()=>showCard(k,true),false);
+    else { app.innerHTML='<div class="empty">'+esc(e.message)+'</div>';cardReadStatus('',null,false);const retry=document.createElement('button');retry.className='b';retry.textContent='Повторить';retry.onclick=()=>showCard(k);app.firstElementChild.append(retry); }
+    return;
+  }
   if (!active() || c.k !== k) return;
+  rememberCardRead(c,epoch);
+  renderCandidateCard(c,k,preserve,savedScope,false);
+}
+function renderCandidateCard(c,k,preserve,savedScope,preview=false) {
   // Capture drafts only from this candidate and at render time (including edits made during the refresh).
   const y = preserve ? window.scrollY : 0, typed = {};
+  const focused = preserve && app.contains(document.activeElement) ? document.activeElement : null;
+  const focusState = focused && focused.id ? {id:focused.id,start:focused.selectionStart,end:focused.selectionEnd} : null;
   if (preserve && app.dataset.cardKey === k) app.querySelectorAll('input[id],textarea[id],select[id]').forEach(el => {
     if (el.type === 'file' || (savedScope && savedScope.contains(el) && el.id !== 'cm-search')) return;
-    if (el.value !== el.defaultValue) typed[el.id] = el.value;
+    if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked !== el.defaultChecked) typed[el.id]={checked:el.checked}; }
+    else { const baseline=el.tagName==='SELECT' ? (Array.from(el.options).find(o=>o.defaultSelected)||el.options[0])?.value : el.defaultValue; if (el.value !== baseline) typed[el.id]=el.value; }
   });
   const se = STE[c.st] || ['▫️', 'z'], tinfo = ME.teamList.find(t => t.t === c.t), dg = c.ph.replace(/\D/g, '');
   const pct = Math.min(100, Math.round(c.ok / ME.limit * 100)), barCls = c.ok >= ME.limit ? 'bad' : c.ok >= ME.limit * .8 ? 'w' : '';
@@ -1422,9 +1525,10 @@ async function showCard(k, keep, savedScope) {
   const shareVino = c.vinoShare ? '<div class="sec" data-save-scope><button class="b" id="vino-share" aria-pressed="' +
     c.vinoShare.shared + '">' + (c.vinoShare.shared ? 'Скрыть кандидата от Вино' : 'Показывать кандидата Вино') + '</button></div>' : '';
   app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
-  app.dataset.cardKey = k;
-  if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) el.value = typed[id]; }); window.scrollTo(0, y); }
-  bindCard(c, typed); observeBudgetCard(c);
+  app.dataset.cardKey = k; app.dataset.cardPreview = preview ? '1' : '0';
+  if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) { if (typed[id] && typeof typed[id] === 'object') el.checked=typed[id].checked; else el.value=typed[id]; } }); window.scrollTo(0, y); }
+  bindCard(c, typed, preview); if (!preview) observeBudgetCard(c);
+  if (focusState) { const el=document.getElementById(focusState.id);if (el) { el.focus({preventScroll:true});if (typeof focusState.start==='number' && typeof el.setSelectionRange==='function') try { el.setSelectionRange(focusState.start,focusState.end); } catch (_) {} } }
 }
 function normalizeRelativePhone(value) {
   // Pasted contacts can contain invisible direction/format marks or typographic separators.
@@ -1494,7 +1598,8 @@ async function flightDocumentNudge(c) {
   const choice = await sheet('🙄 Ну куда ставим вылет?', 'Сначала загрузи: ' + ((c.flightMissing || []).length ? c.flightMissing.join(', ') : 'паспорт или ID') + '. Отметки «документ есть» недостаточно.', [{id:'docs',text:'📎 Загрузить паспорт или ID'},{type:'cancel'}]);
   if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = c.flightMissing && c.flightMissing.length === 1 && c.flightMissing[0] === 'MDAC' ? 'MDAC' : 'Паспорт'; }
 }
-function bindCard(c, preservedFields = {}) {
+function bindCard(c, preservedFields = {}, preview = false) {
+  if (preview) return;
   bindFocus();
   const k = c.k, route = stack[stack.length - 1], view = CARDSEQ;
   const active = () => CARDSEQ === view && stack[stack.length - 1] === route && app.dataset.cardKey === k;
@@ -1549,7 +1654,7 @@ function bindCard(c, preservedFields = {}) {
       on('visa-retry', loadVisa);
     }
   };
-  if (c.evisaPending) loadVisa();
+  if (c.evisaPending && !preview) loadVisa();
   on('candidate-telegram-save', b => run(b, 'telegram', { username: $('#candidate-telegram').value }, 'Telegram сохранён'));
   on('cp', () => { navigator.clipboard && navigator.clipboard.writeText(c.ph).then(() => toast('Номер скопирован')).catch(() => toast(c.ph)); });
   on('wa', () => { const u = 'https://wa.me/' + c.ph.replace(/\D/g, ''); tg ? tg.openLink(u) : window.open(u); });
@@ -2426,10 +2531,11 @@ showList=async reload=>{
  }
  await iosBaseList(reload);iosDecorateList();
 };
-showCard=async(k,keep,savedScope)=>{
- await iosBaseCard(k,keep,savedScope);
+const iosBaseCardRender=renderCandidateCard;
+renderCandidateCard=(c,k,preserve,savedScope,preview)=>{
+ iosBaseCardRender(c,k,preserve,savedScope,preview);
  if(!iosOn()||app.dataset.cardKey!==k)return;
- const c=LIST.find(x=>x.k===k),hero=app.querySelector('.hero');if(!hero||hero.classList.contains('ios-contact-hero'))return;
+ const hero=app.querySelector('.hero');if(!hero||hero.classList.contains('ios-contact-hero'))return;
  hero.classList.add('ios-contact-hero');if(c)hero.insertAdjacentHTML('afterbegin',iosAvatar(c));
  const name=hero.querySelector('.name'),countdown=name.querySelector('.flight-countdown');
  if(c){name.textContent=c.n;if(countdown)hero.append(countdown);}
@@ -2738,4 +2844,5 @@ async function renderVino() {
 </script>
 </body>
 </html>
+
 
