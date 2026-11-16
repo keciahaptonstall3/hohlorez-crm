@@ -1616,10 +1616,12 @@ function highlightComment(value, query) {
   while ((i = lower.indexOf(needle, at)) >= 0) { out += esc(text.slice(at, i)) + '<mark class="cm-match">' + esc(text.slice(i, i + q.length)) + '</mark>'; at = i + q.length; }
   return out + esc(text.slice(at));
 }
-async function flightDocumentNudge(c) {
+async function flightDocumentNudge(c, message = '') {
   hap('error');
-  const choice = await sheet('🙄 Ну куда ставим вылет?', 'Сначала загрузи: ' + ((c.flightMissing || []).length ? c.flightMissing.join(', ') : 'паспорт или ID') + '. Отметки «документ есть» недостаточно.', [{id:'docs',text:'📎 Загрузить паспорт или ID'},{type:'cancel'}]);
-  if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = c.flightMissing && c.flightMissing.length === 1 && c.flightMissing[0] === 'MDAC' ? 'MDAC' : 'Паспорт'; }
+  const missing = message ? ['Паспорт или ID', 'Видео-подтверждение'].filter(type => message.includes(type)) : c.flightMissing || [];
+  const videoOnly = missing.length === 1 && missing[0] === 'Видео-подтверждение';
+  const choice = await sheet('🙄 Ну куда ставим вылет?', message || 'Сначала загрузи: ' + (missing.length ? missing.join(', ') : 'паспорт или ID и видео-подтверждение') + '. Отметки «документ есть» недостаточно.', [{id:'docs',text:videoOnly ? '🎥 Загрузить видео-подтверждение' : '📎 Загрузить документы'},{type:'cancel'}]);
+  if (choice === 'docs') { const docs = $('#card-documents'); if (docs) docs.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}); const type = $('#ft'); if (type) type.value = videoOnly ? 'Видео-подтверждение' : 'Паспорт'; }
 }
 function bindCard(c, preservedFields = {}, preview = false) {
   if (preview) return;
@@ -1628,7 +1630,7 @@ function bindCard(c, preservedFields = {}, preview = false) {
   const active = () => CARDSEQ === view && stack[stack.length - 1] === route && app.dataset.cardKey === k;
   const again = (msg, scope) => { LDIRTY = true; if (!active()) return; if (msg) toast(msg); hap(); showCard(k, true, scope); };
   const run = async (btn, op, a, msg) => { if (!active()) return; const scope = btn ? (btn.closest('[data-save-scope]') || btn.closest('.sec')) : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
-    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg, scope); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { if (!active()) return; hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
+    try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg, scope); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { if (!active()) return; hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c, e.message); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
   if (c.vinoShare) on('vino-share', button => run(button, 'vino-share', {shared: !c.vinoShare.shared},
     c.vinoShare.shared ? 'Доступ Вино закрыт' : 'Кандидат доступен Вино'));
