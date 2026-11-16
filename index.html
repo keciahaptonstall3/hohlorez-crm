@@ -1457,7 +1457,7 @@ async function showCard(k, keep, savedScope) {
     if (!active()) return;
     const denied = /^(auth|auth_old|noaccess)$|Нет доступа|Кандидат не найден/.test(e.serverError || e.message || '');
     if (denied) { clearCardReadCache();app.dataset.cardKey='';app.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
-    else if (app.dataset.cardKey === k) cardReadStatus(preview ? 'Не удалось проверить обновления. Показана сохранённая карточка.' : 'Не удалось обновить карточку. Введённый текст сохранён на экране.',()=>showCard(k,true),false);
+    else if (app.dataset.cardKey === k) cardReadStatus(preview ? 'Не удалось проверить обновления. Показана сохранённая карточка.' : 'Не удалось обновить карточку. Введённый текст сохранён на экране.',()=>showCard(k,true,savedScope),false);
     else { app.innerHTML='<div class="empty">'+esc(e.message)+'</div>';cardReadStatus('',null,false);const retry=document.createElement('button');retry.className='b';retry.textContent='Повторить';retry.onclick=()=>showCard(k);app.firstElementChild.append(retry); }
     return;
   }
