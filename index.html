@@ -1489,12 +1489,19 @@ async function showCard(k, keep, savedScope) {
   renderCandidateCard(c,k,preserve,savedScope,false);
 }
 // Interview dates are entered as Moscow wall time, independent of the device timezone.
+function interviewResultLabel(value) { return {passed:'Прошёл',failed:'Не прошёл',no_show:'Не явился'}[value]||'Не указан'; }
+function interviewResultSection(c) {
+  const x=c.interview,draft=lsGet('interview-result-draft:'+c.k),value=draft==null?x.result||'':draft;
+  return '<div id="interview-result-form" data-save-scope style="margin-top:20px"><h3>Результат собеседования</h3><div class="'+(x.result?'flyv':'sub')+'">'+esc(interviewResultLabel(x.result))+'</div>'
+    +(x.can?'<div class="form"><label class="sub" for="interview-result">Результат собеседования</label><select id="interview-result"><option value="" disabled'+(!value?' selected':'')+'>Выберите результат</option>'+['passed','failed','no_show'].map(r=>'<option value="'+r+'"'+(value===r?' selected':'')+'>'+interviewResultLabel(r)+'</option>').join('')+'</select><button class="b main" id="interview-result-save">Сохранить результат</button><div class="sub">После отметки результата напоминания прекратятся. Новая дата сбросит результат.</div></div>':'')+'</div>';
+}
 function interviewSection(c) {
   const x=c.interview;if(!x)return '';
   const value=x.ts?new Date(x.ts+MSK).toISOString().slice(0,16):'';
   const pending=lsGet('interview-write:'+c.k),draft=lsGet('interview-draft:'+c.k);
   return '<section class="sec" id="card-interview" data-save-scope><h2>Собеседование <small>по Москве</small></h2><div class="'+(x.ts?'flyv':'sub')+'">'+(x.ts?esc(fmt(x.ts,'dy'))+', '+esc(fmt(x.ts).slice(-5))+' МСК':'Дата не назначена')+'</div>'
-    +(x.can?'<div class="form"><label class="sub" for="interview-at">Дата и время собеседования · МСК</label><input type="datetime-local" id="interview-at" value="'+esc(draft==null?value:draft)+'"><div class="two"><button class="b main" id="interview-save">Сохранить</button><button class="b bad" id="interview-cancel"'+(!x.ts&&!pending?' disabled':'')+'>Отменить собеседование</button></div><div class="sub">Бот напомнит сотрудникам с доступом к карточке за сутки, за час и за 10 минут.</div><div class="sub" id="interview-status" role="status" aria-live="polite">'+(pending?'Предыдущее сохранение ещё проверяется. Нажмите «Проверить сохранение».':'')+'</div>'+(pending?'<button class="b" id="interview-check">Проверить сохранение</button>':'')+'</div>':'')+'</section>';
+    +(x.can?'<div class="form"><label class="sub" for="interview-at">Дата и время собеседования · МСК</label><input type="datetime-local" id="interview-at" value="'+esc(draft==null?value:draft)+'"><div class="two"><button class="b main" id="interview-save">Сохранить</button><button class="b bad" id="interview-cancel"'+(!x.ts&&!pending?' disabled':'')+'>Отменить собеседование</button></div><div class="sub">Бот напомнит сотрудникам с доступом к карточке за сутки, за час и за 10 минут.</div></div>':'')+interviewResultSection(c)
+    +(x.can?'<div class="sub" id="interview-status" role="status" aria-live="polite">'+(pending?'Предыдущее сохранение ещё проверяется. Нажмите «Проверить сохранение».':'')+'</div>'+(pending?'<button class="b" id="interview-check">Проверить сохранение</button>':''):'')+'</section>';
 }
 function interviewTime(value) {
   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))return 0;
@@ -1502,21 +1509,24 @@ function interviewTime(value) {
   return Number.isSafeInteger(ts)&&new Date(ts+MSK).toISOString().slice(0,16)===value?ts:0;
 }
 async function saveCandidateInterview(c,ts,checkOnly=false) {
+  const change=typeof ts==='object'&&ts?{result:ts.result}:{ts:ts},isResult=Object.prototype.hasOwnProperty.call(change,'result');
+  const same=request=>isResult?request.arguments.result===change.result:request.arguments.ts===change.ts;
   const storageKey='interview-write:'+c.k;let request=lsGet(storageKey);
   if(request){
     const receipt=await api('agentstatus',{id:request.id});
     if(receipt?.status==='done'){
       lsSet(storageKey,null);
-      if(checkOnly||request.arguments.ts===ts)return receipt;
+      if(checkOnly||same(request))return receipt;
       throw Error('Предыдущее сохранение подтверждено. Обновите карточку перед новым изменением.');
     }
     if(receipt?.status!=='not_found')throw Error('Сохранение ещё не подтверждено. Проверьте карточку позже; повторная запись заблокирована, чтобы не менять расписание дважды.');
-    if(!checkOnly&&request.arguments.ts!==ts)throw Error('Сначала проверьте предыдущее сохранение. Новое время осталось в поле.');
+    if(!checkOnly&&!same(request))throw Error('Сначала проверьте предыдущее сохранение. Новое значение осталось в поле.');
   }
   if(!request){
     if(checkOnly)return null;
-    if(ts!==0&&(!Number.isSafeInteger(ts)||ts<=Date.now()))throw Error('Укажите будущие дату и время по Москве.');
-    request={id:'ag_ui_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Date.now().toString(36)+Math.random().toString(36).slice(2)),operation:'interview',key:c.k,arguments:{ts:ts,rev:c.interview.rev},expected:{name:c.n,stage:c.st,team:c.t||''},reason:'Пользователь сохраняет собеседование в CRM'};
+    if(isResult){if(!['passed','failed','no_show'].includes(change.result))throw Error('Выберите результат собеседования из списка.');}
+    else if(ts!==0&&(!Number.isSafeInteger(ts)||ts<=Date.now()))throw Error('Укажите будущие дату и время по Москве.');
+    request={id:'ag_ui_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Date.now().toString(36)+Math.random().toString(36).slice(2)),operation:'interview',key:c.k,arguments:{...change,rev:c.interview.rev},expected:{name:c.n,stage:c.st,team:c.t||''},reason:isResult?'Пользователь сохраняет результат собеседования':'Пользователь сохраняет собеседование в CRM'};
     lsSet(storageKey,request);if(lsGet(storageKey)?.id!==request.id)throw Error('Не удалось сохранить запрос на устройстве. Освободите место и повторите.');
   }
   try{
@@ -1524,30 +1534,34 @@ async function saveCandidateInterview(c,ts,checkOnly=false) {
     if(receipt?.id!==request.id||receipt.status!=='done')throw Error('Сохранение пока не подтверждено. Нажмите «Проверить сохранение».');
     lsSet(storageKey,null);return receipt;
   }catch(error){
-    if(/^(auth|auth_old|noaccess)$|^Таблица занята|^Карточка изменилась|^Нет доступа|^Собеседование (изменилось|доступно|назначается)|^Укажите будущие/.test(error.serverError||''))lsSet(storageKey,null);
+    if(/^(auth|auth_old|noaccess)$|^Таблица занята|^Карточка изменилась|^Нет доступа|^Собеседование (изменилось|доступно|назначается)|^Укажите будущие|^Выберите результат/.test(error.serverError||''))lsSet(storageKey,null);
     throw error;
   }
 }
 function bindInterview(c,active,again) {
   const section=$('#card-interview'),input=$('#interview-at');if(!section||!input||!c.interview?.can)return;
-  let busy=false;input.oninput=()=>lsSet('interview-draft:'+c.k,input.value);
+  const resultInput=$('#interview-result');let busy=false;input.oninput=()=>lsSet('interview-draft:'+c.k,input.value);
+  resultInput.onchange=()=>lsSet('interview-result-draft:'+c.k,resultInput.value);
   const run=async(ts,checkOnly=false)=>{
     if(busy||!active())return;
-    busy=true;const draft=input.value;lsSet('interview-draft:'+c.k,draft);section.querySelectorAll('input,button').forEach(el=>el.disabled=true);
+    const forResult=typeof ts==='object'||checkOnly&&lsGet('interview-write:'+c.k)?.arguments.result!==undefined;
+    busy=true;const draft=input.value,resultDraft=resultInput.value;lsSet('interview-draft:'+c.k,draft);section.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
     const status=$('#interview-status');status.textContent=checkOnly?'Проверяю сохранение…':'Сохраняю…';
     try{
       const receipt=await saveCandidateInterview(c,ts,checkOnly);
-      if(lsGet('interview-draft:'+c.k)===draft)lsSet('interview-draft:'+c.k,null);
-      if(active())again(receipt?.result?'Собеседование сохранено':'Собеседование отменено',section);
+      if(forResult){if(lsGet('interview-result-draft:'+c.k)===resultDraft)lsSet('interview-result-draft:'+c.k,null);}
+      else if(lsGet('interview-draft:'+c.k)===draft)lsSet('interview-draft:'+c.k,null);
+      if(active())again(typeof receipt?.result==='string'?'Результат: '+interviewResultLabel(receipt.result):receipt?.result?'Собеседование сохранено':'Собеседование отменено',forResult?$('#interview-result-form'):section);
     }catch(error){
       if(active()){
-        status.textContent=error.message;section.querySelectorAll('input,button').forEach(el=>el.disabled=false);
+        status.textContent=error.message;section.querySelectorAll('input,select,button').forEach(el=>el.disabled=false);
         if(lsGet('interview-write:'+c.k)&&!$('#interview-check')){const b=document.createElement('button');b.id='interview-check';b.className='b';b.textContent='Проверить сохранение';b.onclick=()=>run(0,true);status.after(b);}
       }
     }finally{busy=false;}
   };
   $('#interview-save').onclick=()=>{const ts=interviewTime(input.value);if(!ts||ts<=Date.now()){$('#interview-status').textContent='Укажите будущие дату и время по Москве.';return;}run(ts);};
   $('#interview-cancel').onclick=async()=>{if(!busy&&await confirmP('Отменить собеседование и все его напоминания?'))run(0);};
+  $('#interview-result-save').onclick=()=>{if(!resultInput.value){$('#interview-status').textContent='Выберите результат собеседования.';return;}lsSet('interview-result-draft:'+c.k,resultInput.value);run({result:resultInput.value});};
   if($('#interview-check'))$('#interview-check').onclick=()=>run(0,true);
 }
 
