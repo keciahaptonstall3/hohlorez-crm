@@ -435,7 +435,7 @@ input,textarea,select{transition:border-color 160ms ease}
 <div id="app"><div class="empty"><span class="spin"></span><br><br>Загружаю CRM…</div></div>
 <nav class="nav hid" id="nav"></nav>
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbyvh-AKbSfcU7l3IeozRJgMb2rpxOZ_qx7rbjLeaEcf8Mbur0T81T0ljobtEKjfhpCR/exec?api=1';
+const API = 'https://186.246.45.224/v1/app';
 const tg = window.Telegram && Telegram.WebApp;
 const $ = s => document.querySelector(s), app = $('#app');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -576,8 +576,8 @@ async function crmTransport(op, a, allowFast = true) {
   }
   try {
     const {r,j} = await request(API, op === 'upload' || op === 'vino-spend' ? 90000 : 35000);
-    if (!r.ok) throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.');
-    if (FAST_READ_OPS.has(op)) metric('google');
+    if (!r.ok) { if(j && typeof j.err === 'string') return j; throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.'); }
+    if (FAST_READ_OPS.has(op)) metric('server');
     return j;
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.');
