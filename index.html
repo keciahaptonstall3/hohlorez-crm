@@ -487,7 +487,7 @@ function saveCandidateFilters() {
 
 const CARD_READ_CACHE = new Map(), CARD_CACHE_TTL = 120000, CARD_CACHE_LIMIT = 20;
 let CARD_CACHE_EPOCH = 0, CARD_SESSION_VERIFIED = false;
-const CARD_WRITE_OPS = new Set(['recentask','vino-share','vino-add','vino-comment','vino-spend','comment','docs','fly','spend','stage','ask','upload','deletefile','sendfiles','next','call','recall','add','take','wa','wano','inext','ires','infra','waping','evisa','relative-save','relative-delete','callrequest','addarrived','telegram','agentwrite']);
+const CARD_WRITE_OPS = new Set(['interview','recentask','vino-share','vino-add','vino-comment','vino-spend','comment','docs','fly','spend','stage','ask','upload','deletefile','sendfiles','next','call','recall','add','take','wa','wano','inext','ires','infra','waping','evisa','relative-save','relative-delete','callrequest','addarrived','telegram','agentwrite']);
 function clearCardReadCache() { CARD_READ_CACHE.clear(); CARD_CACHE_EPOCH++; }
 function cardCacheScope() { return ME ? JSON.stringify([UID,ME.u,ME.boss,ME.moderator,ME.taker,ME.teams,ME.language]) : ''; }
 function rememberCardRead(card, epoch) {
@@ -1488,6 +1488,69 @@ async function showCard(k, keep, savedScope) {
   rememberCardRead(c,epoch);
   renderCandidateCard(c,k,preserve,savedScope,false);
 }
+// Interview dates are entered as Moscow wall time, independent of the device timezone.
+function interviewSection(c) {
+  const x=c.interview;if(!x)return '';
+  const value=x.ts?new Date(x.ts+MSK).toISOString().slice(0,16):'';
+  const pending=lsGet('interview-write:'+c.k),draft=lsGet('interview-draft:'+c.k);
+  return '<section class="sec" id="card-interview" data-save-scope><h2>Собеседование <small>по Москве</small></h2><div class="'+(x.ts?'flyv':'sub')+'">'+(x.ts?esc(fmt(x.ts,'dy'))+', '+esc(fmt(x.ts).slice(-5))+' МСК':'Дата не назначена')+'</div>'
+    +(x.can?'<div class="form"><label class="sub" for="interview-at">Дата и время собеседования · МСК</label><input type="datetime-local" id="interview-at" value="'+esc(draft==null?value:draft)+'"><div class="two"><button class="b main" id="interview-save">Сохранить</button><button class="b bad" id="interview-cancel"'+(!x.ts&&!pending?' disabled':'')+'>Отменить собеседование</button></div><div class="sub">Бот напомнит сотрудникам с доступом к карточке за сутки, за час и за 10 минут.</div><div class="sub" id="interview-status" role="status" aria-live="polite">'+(pending?'Предыдущее сохранение ещё проверяется. Нажмите «Проверить сохранение».':'')+'</div>'+(pending?'<button class="b" id="interview-check">Проверить сохранение</button>':'')+'</div>':'')+'</section>';
+}
+function interviewTime(value) {
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))return 0;
+  const ts=Date.parse(value+':00+03:00');
+  return Number.isSafeInteger(ts)&&new Date(ts+MSK).toISOString().slice(0,16)===value?ts:0;
+}
+async function saveCandidateInterview(c,ts,checkOnly=false) {
+  const storageKey='interview-write:'+c.k;let request=lsGet(storageKey);
+  if(request){
+    const receipt=await api('agentstatus',{id:request.id});
+    if(receipt?.status==='done'){
+      lsSet(storageKey,null);
+      if(checkOnly||request.arguments.ts===ts)return receipt;
+      throw Error('Предыдущее сохранение подтверждено. Обновите карточку перед новым изменением.');
+    }
+    if(receipt?.status!=='not_found')throw Error('Сохранение ещё не подтверждено. Проверьте карточку позже; повторная запись заблокирована, чтобы не менять расписание дважды.');
+    if(!checkOnly&&request.arguments.ts!==ts)throw Error('Сначала проверьте предыдущее сохранение. Новое время осталось в поле.');
+  }
+  if(!request){
+    if(checkOnly)return null;
+    if(ts!==0&&(!Number.isSafeInteger(ts)||ts<=Date.now()))throw Error('Укажите будущие дату и время по Москве.');
+    request={id:'ag_ui_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Date.now().toString(36)+Math.random().toString(36).slice(2)),operation:'interview',key:c.k,arguments:{ts:ts,rev:c.interview.rev},expected:{name:c.n,stage:c.st,team:c.t||''},reason:'Пользователь сохраняет собеседование в CRM'};
+    lsSet(storageKey,request);if(lsGet(storageKey)?.id!==request.id)throw Error('Не удалось сохранить запрос на устройстве. Освободите место и повторите.');
+  }
+  try{
+    const receipt=await api('agentwrite',request);
+    if(receipt?.id!==request.id||receipt.status!=='done')throw Error('Сохранение пока не подтверждено. Нажмите «Проверить сохранение».');
+    lsSet(storageKey,null);return receipt;
+  }catch(error){
+    if(/^(auth|auth_old|noaccess)$|^Таблица занята|^Карточка изменилась|^Нет доступа|^Собеседование (изменилось|доступно|назначается)|^Укажите будущие/.test(error.serverError||''))lsSet(storageKey,null);
+    throw error;
+  }
+}
+function bindInterview(c,active,again) {
+  const section=$('#card-interview'),input=$('#interview-at');if(!section||!input||!c.interview?.can)return;
+  let busy=false;input.oninput=()=>lsSet('interview-draft:'+c.k,input.value);
+  const run=async(ts,checkOnly=false)=>{
+    if(busy||!active())return;
+    busy=true;const draft=input.value;lsSet('interview-draft:'+c.k,draft);section.querySelectorAll('input,button').forEach(el=>el.disabled=true);
+    const status=$('#interview-status');status.textContent=checkOnly?'Проверяю сохранение…':'Сохраняю…';
+    try{
+      const receipt=await saveCandidateInterview(c,ts,checkOnly);
+      if(lsGet('interview-draft:'+c.k)===draft)lsSet('interview-draft:'+c.k,null);
+      if(active())again(receipt?.result?'Собеседование сохранено':'Собеседование отменено',section);
+    }catch(error){
+      if(active()){
+        status.textContent=error.message;section.querySelectorAll('input,button').forEach(el=>el.disabled=false);
+        if(lsGet('interview-write:'+c.k)&&!$('#interview-check')){const b=document.createElement('button');b.id='interview-check';b.className='b';b.textContent='Проверить сохранение';b.onclick=()=>run(0,true);status.after(b);}
+      }
+    }finally{busy=false;}
+  };
+  $('#interview-save').onclick=()=>{const ts=interviewTime(input.value);if(!ts||ts<=Date.now()){$('#interview-status').textContent='Укажите будущие дату и время по Москве.';return;}run(ts);};
+  $('#interview-cancel').onclick=async()=>{if(!busy&&await confirmP('Отменить собеседование и все его напоминания?'))run(0);};
+  if($('#interview-check'))$('#interview-check').onclick=()=>run(0,true);
+}
+
 function renderCandidateCard(c,k,preserve,savedScope,preview=false) {
   // Capture drafts only from this candidate and at render time (including edits made during the refresh).
   const y = preserve ? window.scrollY : 0, typed = {};
@@ -1547,7 +1610,7 @@ function renderCandidateCard(c,k,preserve,savedScope,preview=false) {
   let logH = ''; if (c.log.length) logH = '<div class="sec quiet"><h2>История этапов</h2><ul class="list">' + c.log.slice(0, 10).map(x => '<li><div class="who">' + fmt(x[0]) + ', ' + staffHtml(x[3]) + '</div>' + esc(x[1] || 'Новый') + ' → <b>' + esc(x[2]) + '</b>' + (x[4] ? '. ' + esc(x[4]) : '') + '</li>').join('') + '</ul></div>';
   const shareVino = c.vinoShare ? '<div class="sec" data-save-scope><button class="b" id="vino-share" aria-pressed="' +
     c.vinoShare.shared + '">' + (c.vinoShare.shared ? 'Скрыть кандидата от Вино' : 'Показывать кандидата Вино') + '</button></div>' : '';
-  app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
+  app.innerHTML = h + shareVino + budgetBanner(c, c.ok) + interviewSection(c) + cmH + askH + docsH + visaH + flyH + spH + stH + dat + logH + (c.can ? '<button class="more" id="relatives-open" style="font-size:13px;margin:12px 0 20px">Контакты родственников →</button>' : '') + '</div>';   // «Вопрос команде» (у руководителей) — сразу под комментариями
   app.dataset.cardKey = k; app.dataset.cardPreview = preview ? '1' : '0';
   if (preserve) { Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) { if (typed[id] && typeof typed[id] === 'object') el.checked=typed[id].checked; else el.value=typed[id]; } }); window.scrollTo(0, y); }
   bindCard(c, typed, preview); if (!preview) observeBudgetCard(c);
@@ -1632,6 +1695,7 @@ function bindCard(c, preservedFields = {}, preview = false) {
   const run = async (btn, op, a, msg) => { if (!active()) return; const scope = btn ? (btn.closest('[data-save-scope]') || btn.closest('.sec')) : null; if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
     try { const d = await api(op, Object.assign({ k: k }, a)); again(typeof msg === 'function' ? msg(d) : msg, scope); if (op === 'stage' && a.s === 'd' && d === 'Доехал') enqueueArrival(c, true); if (op === 'stage' && d === 'Архив' && /^z\d$/.test(String(a.s))) archiveReaction(c, ME.arch[Number(a.s.slice(1))]); return d; } catch (e) { if (!active()) return; hap('error'); if (op === 'fly' && /^🙄/.test(e.message)) await flightDocumentNudge(c, e.message); else toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.t; } } };
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => fn(el); };
+  bindInterview(c,active,again);
   if (c.vinoShare) on('vino-share', button => run(button, 'vino-share', {shared: !c.vinoShare.shared},
     c.vinoShare.shared ? 'Доступ Вино закрыт' : 'Кандидат доступен Вино'));
   if (ME.u === 'contractrussia2' && c.callRequest) {
