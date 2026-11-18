@@ -429,6 +429,7 @@ input,textarea,select{transition:border-color 160ms ease}
 .recent-history-item .recent-text{font-size:14px}
 .recent-history-item .recent-meta{margin-bottom:8px}
 
+html.crm-access-closed body > :not(#crm-access-closed){display:none!important}
 </style>
 </head>
 <body>
@@ -446,8 +447,48 @@ const fmt = (ts, f) => { if (!ts) return '—'; const d = new Date(ts + MSK), p 
 const money = n => '$' + (Math.round(n * 100) / 100).toLocaleString('ru-RU');
 const STE = { 'В работе': ['🟡', 'w'], 'В пути': ['✈️', 't'], 'Доехал': ['✅', 'd'], 'Архив': ['🗄', 'z'] };
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || 0;
-function lsGet(k) { try { const x = localStorage.getItem('crm' + UID + ':' + k); return x ? JSON.parse(x) : null; } catch (e) { return null; } }   // прошлые данные — экран открывается сразу
-function lsSet(k, v) { try { localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (e) {} }
+// Candidate read caches are session-only. Drafts and durable receipt IDs remain
+// intact, so an interrupted write cannot be repeated with a new ID on reload.
+const CRM_PRIVACY_BUILD = '2026-11-18-auth-cache-v1';
+const READ_SESSION_CACHE = new Map();
+let AUTH_VERIFIED = false, AUTH_BLOCKED = false, AUTH_EPOCH = 0;
+function isReadCache(k) { return /^(me|list|staffAwards|arrival-v1|goal-memory)$/.test(k) || /^(r_|v_)/.test(k); }
+function purgeLegacyReadCaches() {
+  try { for (const key of Object.keys(localStorage)) { const m = /^crm\d+:(.*)$/.exec(key); if (m && isReadCache(m[1])) localStorage.removeItem(key); } } catch (_) {}
+}
+purgeLegacyReadCaches();
+function lsGet(k) {
+  if (!AUTH_VERIFIED || AUTH_BLOCKED) return null;
+  try { const x = isReadCache(k) ? READ_SESSION_CACHE.get(k) : localStorage.getItem('crm' + UID + ':' + k); return x ? JSON.parse(x) : null; } catch (_) { return null; }
+}
+function lsSet(k, v) {
+  if (!AUTH_VERIFIED || AUTH_BLOCKED) return;
+  try { if (isReadCache(k)) { if (v == null) READ_SESSION_CACHE.delete(k); else READ_SESSION_CACHE.set(k, JSON.stringify(v)); localStorage.removeItem('crm' + UID + ':' + k); }
+    else if (v == null) localStorage.removeItem('crm' + UID + ':' + k);
+    else localStorage.setItem('crm' + UID + ':' + k, JSON.stringify(v)); } catch (_) {}
+}
+function authClosedError() { const e = new Error('Откройте приложение заново из бота'); e.serverError = 'CLIENT_AUTH_CLOSED'; return e; }
+function closeCandidateAccess(reason) {
+  AUTH_EPOCH++; AUTH_BLOCKED = true; AUTH_VERIFIED = false; CARD_SESSION_VERIFIED = false;
+  clearCardReadCache(); READ_SESSION_CACHE.clear(); purgeLegacyReadCaches();
+  ME = null; LIST = []; LISTP = null; STAFF_AWARDS = {byName:{},byNick:{}};
+  S = {tab:'list',f:'a',q:'',country:'',show:'act',filtersOpen:false}; stack = [];
+  CARDSEQ++; RECENTSEQ++; DASH_REQUEST++; CSEARCH_SEQ++;
+  RECENT = {data:null,items:[],next:null,y:0}; RECENT_OPEN = null; RECENT_HISTORY.clear(); RECENT_Q_DRAFTS = {}; RECENT_Q_BUSY.clear();
+  WA = null; IND = {lead:null,left:0,done:null}; CALL = {lead:null,left:0,done:null}; ADD = {};
+  DASH_DATA = null; BOARD_DATA = null; CM_DRAFTS = {}; CM_PICK = CM_OPEN = CM_PLACE = CM_BUSY = '';
+  GOAL_FRESH = false; PARTY_QUEUE = []; clearTimeout(CSEARCH_TIMER);
+  for (const timer of [boardTimer,callTimer,GOAL_TIMER,ARRIVAL_TIMER]) { clearInterval(timer); clearTimeout(timer); }
+  try { if (PARTY_CLOSE) PARTY_CLOSE(); } catch (_) {}
+  try { tg.BackButton.hide(); } catch (_) {}
+  app.innerHTML = ''; const nav = $('#nav'); if (nav) { nav.innerHTML = ''; nav.classList.add('hid'); }
+  document.querySelectorAll('.party,.toast,.ios-feedback,dialog').forEach(el => el.remove());
+  document.documentElement.classList.add('crm-access-closed');
+  let gate = document.getElementById('crm-access-closed');
+  if (!gate) { gate = document.createElement('div'); gate.id = 'crm-access-closed'; gate.className = 'empty'; gate.setAttribute('role','alert'); document.body.append(gate); }
+  gate.textContent = document.documentElement.lang === 'id' ? 'Buka kembali CRM dari bot.' : reason === 'noaccess' ? 'Нет доступа к CRM. Откройте приложение заново из бота.' : 'Сессия завершена. Откройте приложение заново из бота.';
+}
+window.addEventListener('pagehide', () => { if (AUTH_VERIFIED) closeCandidateAccess('auth'); });
 let LISTP = null, LDIRTY = false;                          // LDIRTY — данные менялись: список показываем сразу, свежий подтягиваем в фоне
 function loadList(force) {                                  // один запрос списка на всех (старт + экран)
   if (!LISTP || force) LISTP = api('list').then(d => { reconcileCardReadCache(d); LIST = d; resetCandidateSearch(); lsSet('list', d); GOAL_FRESH = true; observeGoals(d); return d; }).finally(() => { LISTP = null; });
@@ -569,13 +610,15 @@ async function crmTransport(op, a, allowFast = true) {
       }
       if (r.status === 401 || r.status === 403 || r.status === 404 || r.status === 400) {
         const errors = {AUTH_FAILED:'auth',AUTH_EXPIRED:'auth_old',NO_ACCESS:'noaccess',NOT_FOUND:'Кандидат не найден',BAD_REQUEST:'Некорректный запрос'};
-        return {err:errors[j && j.err] || 'Нет доступа к CRM'};
+        return {err:errors[j && j.err] || (r.status === 401 ? 'auth' : r.status === 403 ? 'noaccess' : 'Некорректный запрос')};
       }
       FAST_READ_RETRY_AT = Date.now() + 15000;
     }
   }
   try {
     const {r,j} = await request(API, op === 'upload' || op === 'vino-spend' ? 90000 : 35000);
+    if (r.status === 401) return {err:j && /^(auth_old|AUTH_EXPIRED)$/.test(j.err) ? 'auth_old' : 'auth'};
+    if (r.status === 403) return {err:'noaccess'};
     if (!r.ok) { if(j && typeof j.err === 'string') return j; throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.'); }
     if (FAST_READ_OPS.has(op)) metric('server');
     return j;
@@ -585,17 +628,20 @@ async function crmTransport(op, a, allowFast = true) {
   }
 }
 async function api(op, a, again) {
+  if (AUTH_BLOCKED || (!AUTH_VERIFIED && op !== 'me')) throw authClosedError();
+  const authEpoch = AUTH_EPOCH;
   const mutates = CARD_WRITE_OPS.has(op);
   if (mutates) clearCardReadCache();
   let j;try { j = await crmTransport(op, a); } finally { if (mutates) clearCardReadCache(); }
+  if (authEpoch !== AUTH_EPOCH || AUTH_BLOCKED) throw authClosedError();
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Не удалось прочитать ответ сервера. Попробуйте позже.');
   if (j.err && /занята/.test(j.err) && !again && op !== 'agentwrite') { await new Promise(res => setTimeout(res, 2000)); return api(op, a, 1); }
   if (j.err) {
-    if (/^(auth|auth_old|noaccess)$/.test(j.err)) { CARD_SESSION_VERIFIED=false;clearCardReadCache(); }
+    if (/^(auth|auth_old|noaccess|AUTH_FAILED|AUTH_EXPIRED|NO_ACCESS)$/.test(j.err)) closeCandidateAccess(j.err === 'NO_ACCESS' ? 'noaccess' : j.err);
     const error = new Error(j.err === 'auth' || j.err === 'auth_old' ? 'Откройте приложение заново из бота' : j.err === 'noaccess' ? 'Нет доступа к CRM' : j.err);
     error.serverError = j.err; throw error;
   }
-  if (op === 'me') { clearCardReadCache();CARD_SESSION_VERIFIED=true; }
+  if (op === 'me') { clearCardReadCache();CARD_SESSION_VERIFIED=true;AUTH_VERIFIED=true;CM_DRAFTS=lsGet('comment-drafts')||{};RECENT_Q_DRAFTS=lsGet('recent-question-drafts')||{}; }
   if (j.staffAwards) { STAFF_AWARDS = j.staffAwards; lsSet('staffAwards',j.staffAwards); }
   refreshGoalsAfterWrite(op);
   return j.d;
@@ -691,6 +737,7 @@ function applyCandidateDefaults() {
   S.f = teams.length > 1 ? 'mine' : i >= 0 ? 't' + i : 'a'; S.show = 'act'; S.defaultUser = defaultKey; restoreCandidateFilters();
 }
 function render() {
+  if (AUTH_BLOCKED || !AUTH_VERIFIED || !ME) return;
   if (ME && ME.language === 'id') return renderVino();
   RECENTSEQ++;
   CARDSEQ++; app.dataset.cardKey = "";
@@ -2934,24 +2981,19 @@ async function renderVino() {
     catch (_) { app.innerHTML = '<div class="empty">Buka kembali CRM dari bot.</div>'; return; }
     if (ME.language === 'id') { renderVino(); return; }
   }
-  const pMe = api('me'), cME = lsGet('me'), cL = lsGet('list');
-  const cachedDesignTester = isIosDesignTester(cME);
-  let designTrialPending = !!cachedDesignTester, verifiedMe = false;
-  loadList().then(() => {                                     // свежий список пришёл — тихо обновляем экран, если человек на нём и не печатает
-    if (ME && !designTrialPending && !stack.length && ['list','arrived'].includes(S.tab) && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { const y = window.scrollY; if (S.tab === 'arrived') showArrived(); else showList(); window.scrollTo(0, y); }
-  }).catch(() => {});
+  try { ME = await api('me'); }
+  catch (e) { if (!AUTH_BLOCKED) app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; }
+  enableIosDesignTrial(ME);
+  if (applyPersonalTheme(ME, true)) tg.onEvent?.('themeChanged', () => applyPersonalTheme(ME, true));
   const sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
-  if (/^c_/.test(sp)) stack.push({ kind: 'card', k: sp.slice(2) });
-  if (cME) { ME = cME; if (cL && cL.length) LIST = cL; if (!cachedDesignTester) render(); }
-  try { ME = await pMe; verifiedMe = true; lsSet('me', ME); } catch (e) { if (!cME) { app.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; return; } }
-  designTrialPending = false;
-  const designTrialEnabled = verifiedMe && enableIosDesignTrial(ME);
-  if (applyPersonalTheme(ME, verifiedMe)) tg.onEvent?.('themeChanged', () => applyPersonalTheme(ME, verifiedMe));
-  if (GOAL_FRESH) observeGoals(LIST);
-  if (!cME || cachedDesignTester) render(); else if (designTrialEnabled) window.applyIosAppearance(); else nav();
+  if (/^c_/.test(sp)) stack.push({kind:'card',k:sp.slice(2)});
+  loadList().then(() => {
+    if (!AUTH_BLOCKED && ME && !stack.length && ['list','arrived'].includes(S.tab) && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) {
+      const y = window.scrollY; if (S.tab === 'arrived') showArrived(); else showList(); window.scrollTo(0,y);
+    }
+  }).catch(() => {});
+  render();
 })();
 </script>
 </body>
 </html>
-
-
