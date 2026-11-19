@@ -579,7 +579,7 @@ function staffName(value) {
   return base+(emoji?' '+emoji:'');
 }
 function staffHtml(value) { return esc(staffName(value)); }
-function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+function toast(t, duration = 2600) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), duration); }
 function hap(k) { try { tg.HapticFeedback.notificationOccurred(k || 'success'); } catch (e) {} }
 const FAST_READ_API = 'https://186.246.45.224/v1/read';
 const FAST_READ_OPS = new Set(['me','list','card','recentcomments','commenthistory']);
@@ -587,11 +587,12 @@ let FAST_READ_RETRY_AT = 0;
 window.CRM_READ_METRICS = [];
 async function crmTransport(op, a, allowFast = true) {
   const started = performance.now(), init = tg ? tg.initData : '';
-  const body = JSON.stringify({init:init, op:op, a:a || {}});
+  let body = JSON.stringify({init:init, op:op, a:a || {}});
+  if (op === 'upload') body = body.replace(/[^\x00-\x7f]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
   const request = async (url, timeout) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
-    try { const r = await fetch(url, {method:'POST', signal:controller.signal, body:body}); return {r:r, j:await r.json()}; }
+    try { const r = await fetch(url, {method:'POST', signal:controller.signal, body:body}); let j; try { j = await r.json(); } catch (e) { if (r.ok) throw e; } return {r:r, j:j}; }
     finally { clearTimeout(timer); }
   };
   const metric = source => {
@@ -617,13 +618,15 @@ async function crmTransport(op, a, allowFast = true) {
     }
   }
   try {
-    const {r,j} = await request(API, op === 'upload' || op === 'vino-spend' ? 90000 : 35000);
+    const {r,j} = await request(API, op === 'upload' ? 150000 : op === 'vino-spend' ? 90000 : 35000);
+    if (r.status === 413) return {err:'Файл слишком большой. Максимум 20 МБ.'};
     if (r.status === 401) return {err:j && /^(auth_old|AUTH_EXPIRED)$/.test(j.err) ? 'auth_old' : 'auth'};
     if (r.status === 403) return {err:'noaccess'};
-    if (!r.ok) { if(j && typeof j.err === 'string') return j; throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.'); }
+    if (!r.ok) { if (op === 'upload' && (!j || !j.err || j.err === 'CRM_REQUEST_FAILED')) return {err:'Не удалось подтвердить загрузку. Откройте карточку заново и проверьте список файлов перед повторной отправкой.'}; if(j && typeof j.err === 'string') return j; throw new Error('Сервер не ответил (' + r.status + '). Попробуйте позже.'); }
     if (FAST_READ_OPS.has(op)) metric('server');
     return j;
   } catch (e) {
+    if (op === 'upload' && ['AbortError','TypeError','SyntaxError'].includes(e.name)) throw new Error('Не удалось подтвердить загрузку. Откройте карточку заново и проверьте список файлов перед повторной отправкой.');
     if (e.name === 'AbortError') throw new Error('Сервер не ответил вовремя. Проверьте соединение и повторите.');
     throw e;
   }
@@ -703,7 +706,7 @@ function sheet(title, msg, btns) {
     document.body.appendChild(ov);
   });
 }
-function b64(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); }); }
+function b64(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('Не удалось прочитать файл. Сохраните его на устройстве и выберите заново.')); fr.readAsDataURL(file); }); }
 async function shrink(file) {                                  // фото — сжать до ~1600px, чтобы быстро грузилось
   if (!/^image\//.test(file.type) || file.size < 600e3) return { b: await b64(file), mime: file.type };
   const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
@@ -1842,10 +1845,14 @@ function bindCard(c, preservedFields = {}, preview = false) {
   });
   on('up', () => $('#file').click());
   on('dother', () => { const sel = $('#ft'); if (sel) sel.value = 'Другое'; $('#file').click(); });   // любой другой файл — не входит в счёт «N из M»
-  const fi = $('#file'); if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f) return;
-    if (f.size > 20e6) return toast('Файл больше 20 МБ — пришлите его через бот');
-    const type = $('#ft').value, btn = $('#up'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
-    try { const x = await shrink(f); await api('upload', { k: k, type: type, b64: x.b, mime: x.mime, fname: f.name }); again('Файл сохранён'); } catch (e) { toast(e.message); btn.disabled = false; btn.innerHTML = '⬆️ Загрузить файл'; } };
+  let uploadBusy = false;
+  const fi = $('#file'); if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f || uploadBusy) return;
+    if (!f.size || f.size > 20e6) { fi.value = ''; return toast(f.size ? 'Файл больше 20 МБ. Уменьшите размер видео и выберите его заново.' : 'Файл пустой. Выберите другой файл.', 7000); }
+    const select = $('#ft'), type = select.value, btn = $('#up'); uploadBusy = true; fi.disabled = select.disabled = btn.disabled = true; btn.innerHTML = '<span class="spin"></span> загружаю';
+    try { const x = await shrink(f); await api('upload', { k: k, type: type, b64: x.b, mime: x.mime, fname: f.name }); again('Файл сохранён'); }
+    catch (e) { toast(e.message, 9000); }
+    finally { uploadBusy = false; fi.disabled = select.disabled = btn.disabled = false; fi.value = ''; btn.innerHTML = '⬆️ Загрузить файл'; }
+  };
   on('sf', b => run(b, 'sendfiles', {}, 'Файлы отправлены вам в бот'));
   app.querySelectorAll('[data-delete-file]').forEach(b => b.onclick = async () => {
     if (await confirmP('Удалить вложение «' + b.dataset.fileType + '» из карточки? Если это последний файл этого документа, отметка о его наличии снимется.')) await run(b, 'deletefile', {file:b.dataset.deleteFile}, 'Вложение удалено');
