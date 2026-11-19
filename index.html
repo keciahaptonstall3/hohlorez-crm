@@ -618,7 +618,7 @@ async function crmTransport(op, a, allowFast = true) {
     }
   }
   try {
-    const {r,j} = await request(API, op === 'upload' ? 150000 : op === 'vino-spend' ? 90000 : 35000);
+    const {r,j} = await request(API, op === 'upload' ? 210000 : op === 'vino-spend' ? 90000 : 35000);
     if (r.status === 413) return {err:'Файл слишком большой. Максимум 20 МБ.'};
     if (r.status === 401) return {err:j && /^(auth_old|AUTH_EXPIRED)$/.test(j.err) ? 'auth_old' : 'auth'};
     if (r.status === 403) return {err:'noaccess'};
